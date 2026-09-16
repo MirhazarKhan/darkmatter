@@ -256,6 +256,14 @@ export function drawVignette(
   ctx.restore();
 }
 
+const _grainTile = typeof document !== 'undefined' ? document.createElement('canvas') : null;
+if (_grainTile) {
+  _grainTile.width = 128;
+  _grainTile.height = 128;
+}
+let _grainSeed = -1;
+let _grainAlpha = -1;
+
 export function paintGrain(
   ctx: CanvasRenderingContext2D,
   w: number,
@@ -263,37 +271,34 @@ export function paintGrain(
   alpha: number,
   seed: number,
 ) {
-  if (alpha < 1) return;
-  const gw = Math.max(1, (w / 2) | 0);
-  const bh = Math.max(1, (h / 2) | 0);
-  // cheap: reuse a small noise tile via pattern when possible
-  const tile = 128;
-  const off = document.createElement('canvas');
-  off.width = tile;
-  off.height = tile;
-  const octx = off.getContext('2d');
+  if (alpha < 1 || !_grainTile) return;
+  const octx = _grainTile.getContext('2d');
   if (!octx) return;
-  const img = octx.createImageData(tile, tile);
-  const d = img.data;
-  let s = (seed * 1103515245 + 12345) >>> 0;
-  for (let i = 0; i < d.length; i += 4) {
-    s = (s * 1664525 + 1013904223) >>> 0;
-    const v = s & 255;
-    d[i] = v;
-    d[i + 1] = v;
-    d[i + 2] = v;
-    d[i + 3] = alpha | 0;
+  const a = alpha | 0;
+  const s0 = seed | 0;
+  if (s0 !== _grainSeed || a !== _grainAlpha) {
+    _grainSeed = s0;
+    _grainAlpha = a;
+    const img = octx.createImageData(128, 128);
+    const d = img.data;
+    let s = (s0 * 1103515245 + 12345) >>> 0;
+    for (let i = 0; i < d.length; i += 4) {
+      s = (s * 1664525 + 1013904223) >>> 0;
+      const v = s & 255;
+      d[i] = v;
+      d[i + 1] = v;
+      d[i + 2] = v;
+      d[i + 3] = a;
+    }
+    octx.putImageData(img, 0, 0);
   }
-  octx.putImageData(img, 0, 0);
   ctx.save();
   ctx.globalCompositeOperation = 'overlay';
   ctx.globalAlpha = 0.55;
-  const pat = ctx.createPattern(off, 'repeat');
+  const pat = ctx.createPattern(_grainTile, 'repeat');
   if (pat) {
     ctx.fillStyle = pat;
     ctx.fillRect(0, 0, w, h);
-  } else {
-    ctx.drawImage(off, 0, 0, gw, bh);
   }
   ctx.restore();
 }

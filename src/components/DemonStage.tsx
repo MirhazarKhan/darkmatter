@@ -468,7 +468,7 @@ export function DemonStage() {
         tickEmbers(embersRef.current, dt);
 
         if (phaseRef.current === 'static') {
-          compositeHeroScene(sceneCtx, viewW, viewH, dpr, 1.08, 0, 0, 0, 1, 1.02);
+          compositeHeroScene(sceneCtx, viewW, viewH, dpr, 1.14, 0, 0, 0, 1, 1.02);
           // clear embers draw path by temporarily swapping — blit handles draw
           const saved = embersRef.current;
           embersRef.current = [];
@@ -611,7 +611,7 @@ export function DemonStage() {
               viewH,
               heroSizeRef.current.w,
               heroSizeRef.current.h,
-              lerp(1.22, 1.08, t),
+              lerp(1.28, 1.14, t),
               px * 10,
               py * 8,
               rgbAmt * 0.55,
@@ -644,7 +644,7 @@ export function DemonStage() {
           );
         } else if (phase === 'alive') {
           const breath = 0.5 + 0.5 * Math.sin(now * 0.00115);
-          const scale = 1.06 + 0.02 * easeSineInOut(breath);
+          const scale = 1.12 + 0.025 * easeSineInOut(breath);
           const glowPulse = 0.5 + 0.5 * Math.sin(now * 0.0018);
 
           if (now > nextGlitchRef.current) {
