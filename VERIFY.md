@@ -1,8 +1,9 @@
 # Verify
 
 1. `npm install && npm run build` succeeds.
-2. `npm run preview` shows charcoal `#0d0e0f` full-viewport stage.
-3. Hero is the detailed `public/demon-detailed.svg` (~190KB, ~599 paths, 38 gradients) — not the flat cartoon layers.
-4. Sequence: soft orb → light expand / mask reveal of detailed figure → living idle (breathe, bloom, parallax) → Replay.
-5. `prefers-reduced-motion: reduce` shows static detailed SVG.
-6. Tab hide pauses animation; show resumes.
+2. Stage is pure black `#000000`, `100vw × 100dvh`, art **cover-fit** (not a floating portrait card).
+3. Orb is the user pack 126 Path2D frames from `public/frames-data.js` (script-tag load), not a fake CSS orb.
+4. Hero is `public/demon-detailed.svg` — not the cartoon 5-layer potrace.
+5. Sequence: orb reel → heavy VFX transition → living idle → Replay.
+6. `prefers-reduced-motion: reduce` shows static detailed SVG full-bleed; no orb animation.
+7. Tab hide pauses rAF; show resumes.

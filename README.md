@@ -1,6 +1,6 @@
 # Dark Matter — Demon
 
-Premium full-viewport motion graphic built around the **detailed auto-traced SVG** (painterly grayscale depth), not a flat cartoon silhouette composite.
+Cinematic full-viewport motion graphic: the **user glitch-orb** (126 Path2D frames) detonates into the **detailed auto-traced SVG**. Pure black stage, cover-fit, heavy VFX — not a letterboxed postcard.
 
 ## Run
 
@@ -18,20 +18,19 @@ npm run preview
 
 ## Art
 
-- Hero asset: `public/demon-detailed.svg` (optimized from the original ~413KB auto-trace)
-- Source of truth for fidelity: `/workspace/source-art.svg` (598–599 paths, 38 linearGradients)
-- Preview renders: `../assets/preview-detailed.png`, `../assets/preview-fidelity-compare.png`
-
-Optimization uses SVGO multipass at float precision 2 while keeping gradients, viewBox, and path fidelity (see `UPGRADE.md`).
+- Glitch orb: `public/frames-data.js` (126 white-on-black Path2D frames, `600×338`, FILL `#FFFFFF` / BG `#000000`) — classic script loaded once via `<script>`, not bundled into TSX
+- Hero figure: `public/demon-detailed.svg` (optimized auto-trace, ~599 paths, 38 gradients)
+- Source of truth for figure fidelity: `/workspace/source-art.svg`
 
 ## Experience
 
-1. Soft luminous orb breathes in charcoal darkness (`#0d0e0f`)
-2. Light expands and **mask-reveals the detailed figure** (no cartoon morph)
-3. Living idle: subtle breathe (≈1.0–1.015), atmospheric smoke/glow plates, soft bloom, micro parallax
-4. Film grain + vignette for cinematic depth
-5. **Replay** restarts the sequence
+Full-bleed `#000000` stage (`100vw × 100dvh`). Time-driven (no scroll / Lenis / ScrollTrigger).
 
-`prefers-reduced-motion: reduce` shows the static detailed SVG. Animation pauses while the document is hidden.
+1. **Orb reel** — 126 Path2D frames, cover-fit into the viewport, original black↔white colorway, optical glow, glitch slices
+2. **Detonation** — chromatic aberration, film burn, white flash, mask wipe, shockwave, ember burst, canvas blend punch into the figure
+3. **Alive idle** — cover-cropped detailed figure, bloom pulse, breathe, parallax, grain, vignette, occasional glitch ticks
+4. **Replay**
 
-Stack: Vite + React + TypeScript. Inline SVG for the hero, CSS depth plates from the same SVG URL, canvas grain overlay.
+`prefers-reduced-motion: reduce` shows the static detailed SVG full-bleed (no orb). Animation **pauses rAF** while `document.hidden`.
+
+Stack: Vite + React + TypeScript. Canvas orb engine + HTML/SVG composite.

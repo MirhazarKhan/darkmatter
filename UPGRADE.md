@@ -35,3 +35,15 @@ Steps:
 - Inline SVG (~190 KB) is heavier than the old 8 KB cartoon; acceptable for a hero art piece
 - Eye pulse is ambient via bloom/brightness, not a separately isolated eye path (paths are not labeled in the auto-trace)
 - Grain is a static low-res noise texture, not animated film stock
+
+
+## Full-bleed glitch orb (this pass)
+
+User feedback: the previous stage still read as a floating portrait on charcoal. This pass:
+
+- Stage is `#000000` edge-to-edge (`100vw × 100dvh`)
+- Removed the fake CSS orb
+- Ported `user-pack` Path2D engine (126 frames) into React, time-driven
+- Cover-fit orb (`600×338`) and cover/slice hero SVG so figure + aura dominate
+- Heavy transition VFX (flash, film burn, RGB split, shockwave, embers, glitch)
+- `frames-data.js` (~5.2MB) lives in `public/` and loads once via a script tag so Vite HMR is not bloated

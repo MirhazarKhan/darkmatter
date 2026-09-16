@@ -12,9 +12,9 @@ body,
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #0d0e0f;
+  background: #000000;
   color: #e8e8e2;
-  font-family: system-ui, -apple-system, Segoe UI, sans-serif;
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
 }
 
 .demon-root {
@@ -23,127 +23,218 @@ body,
   width: 100vw;
   height: 100dvh;
   overflow: hidden;
-  background: #0d0e0f;
+  background: #000000;
   touch-action: none;
+}
+
+.orb-canvas,
+.fx-canvas,
+.grain,
+.vignette,
+.scanlines,
+.film-burn,
+.flash,
+.shockwave-wrap {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.orb-canvas {
+  z-index: 1;
+  display: block;
+  background: #000000;
 }
 
 .demon-stage {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
+  z-index: 2;
+  overflow: hidden;
   will-change: transform;
 }
 
 .depth-layer,
-.hero-frame {
+.hero-frame,
+.rgb-plate {
   position: absolute;
-  width: min(92vw, calc(92dvh * 168.81 / 300));
-  height: min(92dvh, calc(92vw * 300 / 168.81));
-  max-width: 100%;
-  max-height: 100%;
+  inset: 0;
+  width: 100%;
+  height: 100%;
   pointer-events: none;
+  overflow: hidden;
 }
 
 .depth-far {
   opacity: 0;
-  filter: blur(18px) brightness(1.15) saturate(0.85);
-  transform: scale(1.06);
+  z-index: 1;
+  background-repeat: no-repeat;
+  background-position: center 10%;
+  background-size: cover;
+  filter: blur(22px) brightness(1.35) saturate(0.7);
+  transform: scale(1.18);
   will-change: transform, opacity;
 }
 
 .depth-mid {
   opacity: 0;
-  filter: blur(8px) brightness(1.25) contrast(1.05);
+  z-index: 2;
+  background-repeat: no-repeat;
+  background-position: center 10%;
+  background-size: cover;
+  filter: blur(10px) brightness(1.45) contrast(1.08);
   mix-blend-mode: screen;
-  transform: scale(1.03);
+  transform: scale(1.1);
   will-change: transform, opacity;
 }
 
 .hero-frame {
   opacity: 0;
-  z-index: 3;
-  display: grid;
-  place-items: center;
+  z-index: 4;
   will-change: transform, opacity, filter, clip-path;
-  filter: contrast(1.05);
+  filter: contrast(1.08) saturate(0.92);
 }
 
 .hero-svg {
   display: block;
   width: 100%;
   height: 100%;
-  overflow: visible;
+  overflow: hidden;
+}
+
+.rgb-plate {
+  z-index: 5;
+  opacity: 0;
+  mix-blend-mode: screen;
+  background-repeat: no-repeat;
+  background-position: center 10%;
+  background-size: cover;
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+
+.rgb-r {
+  filter: brightness(0.22) sepia(1) hue-rotate(-40deg) saturate(6) contrast(1.2);
+}
+
+.rgb-b {
+  filter: brightness(0.22) sepia(1) hue-rotate(155deg) saturate(6) contrast(1.2);
 }
 
 .soft-bloom {
   position: absolute;
   left: 50%;
-  top: 42%;
-  width: min(70vw, 420px);
-  height: min(70vw, 420px);
+  top: 38%;
+  width: 140vmax;
+  height: 140vmax;
   border-radius: 50%;
-  transform: translate(-50%, -50%) scale(1.2);
+  transform: translate(-50%, -50%) scale(1);
   opacity: 0;
-  z-index: 1;
+  z-index: 3;
   pointer-events: none;
   background: radial-gradient(
     circle,
-    rgba(255, 252, 240, 0.55) 0%,
-    rgba(210, 205, 190, 0.22) 28%,
-    rgba(120, 118, 110, 0.08) 52%,
-    transparent 72%
+    rgba(255, 248, 230, 0.62) 0%,
+    rgba(255, 210, 160, 0.22) 18%,
+    rgba(180, 40, 20, 0.1) 36%,
+    rgba(40, 10, 8, 0.04) 52%,
+    transparent 68%
   );
-  filter: blur(28px);
+  filter: blur(36px);
   mix-blend-mode: screen;
   will-change: transform, opacity;
 }
 
-.light-orb {
+.fx-canvas {
+  z-index: 6;
+}
+
+.shockwave {
   position: absolute;
   left: 50%;
   top: 42%;
-  width: min(28vw, 160px);
-  height: min(28vw, 160px);
+  width: 48px;
+  height: 48px;
   border-radius: 50%;
-  transform: translate(-50%, -50%) scale(0.7);
-  opacity: 0;
-  z-index: 4;
-  pointer-events: none;
-  background:
-    radial-gradient(circle at 40% 35%, rgba(255, 255, 250, 0.95) 0%, rgba(240, 235, 220, 0.55) 28%, rgba(180, 175, 160, 0.18) 55%, transparent 72%),
-    radial-gradient(circle, rgba(255, 250, 235, 0.35) 0%, transparent 70%);
-  filter: blur(6px);
-  mix-blend-mode: screen;
+  border: 2px solid rgba(255, 255, 255, 0);
+  transform: translate(-50%, -50%) scale(0.2);
   box-shadow:
-    0 0 40px rgba(255, 250, 235, 0.25),
-    0 0 90px rgba(200, 195, 180, 0.12);
+    0 0 0 0 rgba(255, 255, 255, 0),
+    inset 0 0 40px rgba(255, 240, 220, 0);
+  z-index: 6;
+  pointer-events: none;
   will-change: transform, opacity;
 }
 
-.vignette {
-  position: absolute;
-  inset: 0;
-  z-index: 8;
-  pointer-events: none;
+.film-burn {
+  z-index: 7;
+  opacity: 0;
   background: radial-gradient(
-    ellipse at center,
-    transparent 42%,
-    rgba(8, 9, 10, 0.35) 68%,
-    rgba(5, 6, 7, 0.78) 100%
+    circle at 50% 42%,
+    rgba(255, 255, 255, 1) 0%,
+    rgba(255, 230, 190, 0.95) 12%,
+    rgba(255, 80, 30, 0.55) 28%,
+    rgba(20, 0, 0, 0.2) 52%,
+    rgba(0, 0, 0, 0) 72%
   );
-  opacity: 0.9;
+  mix-blend-mode: screen;
+  will-change: opacity, transform;
+}
+
+.flash {
+  z-index: 8;
+  opacity: 0;
+  background: #ffffff;
+  mix-blend-mode: screen;
+  will-change: opacity;
+}
+
+.scanlines {
+  z-index: 9;
+  opacity: 0.28;
+  background: repeating-linear-gradient(
+    to bottom,
+    transparent 0px,
+    transparent 2px,
+    rgba(0, 0, 0, 0.18) 2px,
+    rgba(0, 0, 0, 0.18) 3px
+  );
+  mix-blend-mode: multiply;
+}
+
+.vignette {
+  z-index: 10;
+  background: radial-gradient(
+    ellipse at 50% 42%,
+    transparent 28%,
+    rgba(0, 0, 0, 0.28) 58%,
+    rgba(0, 0, 0, 0.78) 82%,
+    rgba(0, 0, 0, 0.94) 100%
+  );
+  opacity: 1;
 }
 
 .grain {
-  position: absolute;
-  inset: 0;
-  z-index: 9;
-  width: 100%;
-  height: 100%;
-  pointer-events: none;
-  opacity: 0.55;
+  z-index: 11;
+  opacity: 0.5;
   mix-blend-mode: overlay;
+}
+
+.cine-hud {
+  position: absolute;
+  left: 18px;
+  bottom: 16px;
+  z-index: 18;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: rgba(232, 232, 226, 0.55);
+  pointer-events: none;
+  opacity: 0;
+  will-change: opacity;
 }
 
 .boot-msg {
@@ -152,34 +243,35 @@ body,
   top: 50%;
   transform: translate(-50%, -50%);
   z-index: 12;
-  font-size: 12px;
-  letter-spacing: 0.12em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+  letter-spacing: 0.28em;
   text-transform: uppercase;
-  color: rgba(232, 232, 226, 0.55);
+  color: rgba(232, 232, 226, 0.5);
 }
 
 .replay-btn {
   position: absolute;
-  right: 14px;
-  bottom: 14px;
+  right: 16px;
+  bottom: 16px;
   z-index: 20;
-  border: 1px solid rgba(232, 232, 226, 0.28);
-  background: rgba(13, 14, 15, 0.72);
+  border: 1px solid rgba(232, 232, 226, 0.32);
+  background: rgba(0, 0, 0, 0.72);
   color: #e8e8e2;
   font-size: 11px;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  padding: 8px 12px;
-  border-radius: 4px;
+  padding: 9px 14px;
+  border-radius: 2px;
   cursor: pointer;
-  backdrop-filter: blur(6px);
-  opacity: 0.75;
+  backdrop-filter: blur(8px);
+  opacity: 0.8;
   transition: opacity 160ms ease, border-color 160ms ease;
 }
 
 .replay-btn:hover {
   opacity: 1;
-  border-color: rgba(232, 232, 226, 0.55);
+  border-color: rgba(232, 232, 226, 0.7);
 }
 
 .replay-btn:focus-visible {
@@ -192,7 +284,8 @@ body,
   .depth-mid,
   .hero-frame,
   .soft-bloom,
-  .light-orb {
+  .orb-canvas,
+  .scanlines {
     transition: none !important;
   }
 }
