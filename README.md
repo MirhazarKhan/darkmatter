@@ -1,6 +1,6 @@
-# Demon Morph
+# Dark Matter — Demon
 
-Full-viewport demonic path-morph VFX (Vite + React + TypeScript + Canvas 2D + flubber).
+Premium full-viewport motion graphic built around the **detailed auto-traced SVG** (painterly grayscale depth), not a flat cartoon silhouette composite.
 
 ## Run
 
@@ -9,23 +9,29 @@ npm install
 npm run dev
 ```
 
-Open the local URL Vite prints (default `http://127.0.0.1:5173`).
-
-Production build:
+Production:
 
 ```bash
 npm run build
 npm run preview
 ```
 
-## Behavior
+## Art
 
-1. Idle white orb breathes
-2. Orb morphs into jagged `glowCore`
-3. Figure, eye, and outer smoke reveal
-4. Alive idle: smoke A↔B morph, glow pulse, eye flicker
-5. After a hold, loops back to the orb (or click **Replay**)
+- Hero asset: `public/demon-detailed.svg` (optimized from the original ~413KB auto-trace)
+- Source of truth for fidelity: `/workspace/source-art.svg` (598–599 paths, 38 linearGradients)
+- Preview renders: `../assets/preview-detailed.png`, `../assets/preview-fidelity-compare.png`
 
-`prefers-reduced-motion: reduce` shows a static layered composite (no morph). Animation pauses while the document is hidden.
+Optimization uses SVGO multipass at float precision 2 while keeping gradients, viewBox, and path fidelity (see `UPGRADE.md`).
 
-Art viewBox is `169×300`, contain-fitted with `#242526` letterboxing. Path keys live in `src/data/` (copied from `../assets`).
+## Experience
+
+1. Soft luminous orb breathes in charcoal darkness (`#0d0e0f`)
+2. Light expands and **mask-reveals the detailed figure** (no cartoon morph)
+3. Living idle: subtle breathe (≈1.0–1.015), atmospheric smoke/glow plates, soft bloom, micro parallax
+4. Film grain + vignette for cinematic depth
+5. **Replay** restarts the sequence
+
+`prefers-reduced-motion: reduce` shows the static detailed SVG. Animation pauses while the document is hidden.
+
+Stack: Vite + React + TypeScript. Inline SVG for the hero, CSS depth plates from the same SVG URL, canvas grain overlay.

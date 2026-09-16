@@ -1,5 +1,5 @@
 {
-  "name": "demon-morph",
+  "name": "darkmatter",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -10,12 +10,10 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "flubber": "^0.4.2",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
-    "@types/flubber": "^0.4.0",
     "@types/node": "^24.13.3",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
