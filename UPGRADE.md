@@ -1,49 +1,45 @@
-# Fidelity upgrade
+# Fidelity upgrade — canvas VFX pipeline
 
-## Why
+## Honest admission
 
-The previous stage used a 5-layer flattened cartoon (`demon-layers.svg` / flubber morph). That looked childish and discarded the painterly depth of the original auto-trace. This upgrade restores the **detailed SVG** as the hero and rebuilds the experience as cinematic VFX around it.
+Prior passes called CSS blur plates + grain overlay + flash on top of an inline SVG
+“heavy full-bleed VFX.” That was insufficient. When the runtime still resolved to the
+4/5-path cartoon (`demon-layers.svg`) or rendered the detailed art as a floating card
+on charcoal, the result looked exactly like the user’s complaint screenshot: flat
+cutouts, no painterly depth, no real post stack. Blurring a vector plate is not bloom.
+A postcard on `#0d0e0f` is not full-bleed cinema.
 
-## Asset pipeline
+## What this pass actually does
 
-| | Before | After |
-|---|---:|---:|
-| File | `source-art.svg` | `public/demon-detailed.svg` (+ `assets/` copy) |
-| Size | 412,968 bytes (~403 KB) | 194,811 bytes (~190.2 KB) |
-| Paths | 598 | 599 |
-| linearGradients | 38 | 38 |
-| Visual delta (MAE RGB @500px) | — | ~0.03 (effectively lossless) |
+1. **Full-bleed `#000` canvas** — one viewport-sized `<canvas>` (`100vw × 100dvh`). No
+   CSS depth plates, no SVG DOM hero, no cine HUD labels.
+2. **Painterly hero source of truth** — `public/demon-hero.png` (≈1013×1800), rasterized
+   with `rsvg-convert` from `demon-detailed.svg` (599 paths) with the charcoal plate
+   forced to `#000`. Loaded as `ImageBitmap` and drawn with **cover** fit so the figure
+   fills the viewport. The 4-path cartoon is not referenced in the runtime UI.
+3. **Real canvas VFX stack** (see `src/lib/vfx.ts`):
+   - Multi-pass bloom (downsample → threshold → box-blur → upsample + screen composite)
+   - Animated film grain (tiled noise, overlay)
+   - Radial vignette
+   - Subtle chromatic aberration on the hero draw
+   - Soft light rays behind the figure
+   - Embers + shockwave + film-burn + glitch slices during the hard transition
+4. **Opener** — time-driven 126-frame Path2D glitch-orb reel from `public/frames-data.js`,
+   then a hard cinematic transition into the detailed raster hero.
+5. **Minimal chrome** — Replay button only. `prefers-reduced-motion` → static detailed
+   hero. Pause on `document.hidden`.
 
-Steps:
+## Asset notes
 
-1. Flatten nested `<svg>` wrapper
-2. Normalize viewBox to `0 0 168.81 300`
-3. SVGO multipass, float precision 2, keep viewBox/gradients, avoid aggressive `mergePaths`
-4. Re-add `xmlns` for standalone validity
+| Asset | Role |
+|---|---|
+| `public/demon-hero.png` | Visual source of truth for the alive stage |
+| `public/demon-detailed.svg` | Kept for sharp reference / re-raster; not the live hero |
+| `public/frames-data.js` | Glitch orb Path2D reel (~5.2MB, classic script) |
+| `demon-layers.svg` / morph-keys | **Not used** in the app runtime |
 
-## App changes
+## Limits (still honest)
 
-- Replaced Canvas/flubber morph stage with **inline detailed SVG** + atmospheric depth plates
-- Charcoal stage `#0d0e0f`, full `100vw × 100dvh`, no scroll
-- Techniques: blurred far/mid SVG plates, soft bloom, clip-path light reveal, breathe idle, pointer+drift parallax, film grain, vignette
-- Removed flubber + morph key JSON from the runtime path
-- `prefers-reduced-motion` → static detailed figure; pause on `document.hidden`
-
-## Limits (honest)
-
-- Depth plates are full-SVG duplicates with blur (not true per-path luminance grouping) — still reads dimensional without destroying detail
-- Inline SVG (~190 KB) is heavier than the old 8 KB cartoon; acceptable for a hero art piece
-- Eye pulse is ambient via bloom/brightness, not a separately isolated eye path (paths are not labeled in the auto-trace)
-- Grain is a static low-res noise texture, not animated film stock
-
-
-## Full-bleed glitch orb (this pass)
-
-User feedback: the previous stage still read as a floating portrait on charcoal. This pass:
-
-- Stage is `#000000` edge-to-edge (`100vw × 100dvh`)
-- Removed the fake CSS orb
-- Ported `user-pack` Path2D engine (126 frames) into React, time-driven
-- Cover-fit orb (`600×338`) and cover/slice hero SVG so figure + aura dominate
-- Heavy transition VFX (flash, film burn, RGB split, shockwave, embers, glitch)
-- `frames-data.js` (~5.2MB) lives in `public/` and loads once via a script tag so Vite HMR is not bloated
+- Bloom is a 2D canvas approximation, not a HDR mip-chain in WebGL.
+- Chromatic aberration uses filtered offset draws, not true per-channel buffers.
+- Hero is a high-res raster; extreme zooms will soft-pixel vs pure SVG edges.

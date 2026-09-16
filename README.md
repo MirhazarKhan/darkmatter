@@ -1,6 +1,6 @@
 # Dark Matter — Demon
 
-Cinematic full-viewport motion graphic: the **user glitch-orb** (126 Path2D frames) detonates into the **detailed auto-traced SVG**. Pure black stage, cover-fit, heavy VFX — not a letterboxed postcard.
+Full-viewport **canvas** motion graphic: the user glitch-orb (126 Path2D frames) hard-cuts into a painterly detailed demon hero. Pure `#000` stage, cover-fit, real post stack — not CSS blur plates on a floating cartoon card.
 
 ## Run
 
@@ -16,21 +16,18 @@ npm run build
 npm run preview
 ```
 
-## Art
+`/?phase=alive` skips the orb opener.
 
-- Glitch orb: `public/frames-data.js` (126 white-on-black Path2D frames, `600×338`, FILL `#FFFFFF` / BG `#000000`) — classic script loaded once via `<script>`, not bundled into TSX
-- Hero figure: `public/demon-detailed.svg` (optimized auto-trace, ~599 paths, 38 gradients)
-- Source of truth for figure fidelity: `/workspace/source-art.svg`
+## Art / runtime
 
-## Experience
+| Asset | Role |
+|---|---|
+| `public/demon-hero.png` | **Visual source of truth** — high-res raster (~1013×1800) from detailed SVG |
+| `public/demon-detailed.svg` | 599-path source kept for re-raster / reference |
+| `public/frames-data.js` | Glitch orb Path2D reel (~5.2MB classic script) |
 
-Full-bleed `#000000` stage (`100vw × 100dvh`). Time-driven (no scroll / Lenis / ScrollTrigger).
+Cartoon `demon-layers.svg` / morph-keys are **not** used in the runtime UI.
 
-1. **Orb reel** — 126 Path2D frames, cover-fit into the viewport, original black↔white colorway, optical glow, glitch slices
-2. **Detonation** — chromatic aberration, film burn, white flash, mask wipe, shockwave, ember burst, canvas blend punch into the figure
-3. **Alive idle** — cover-cropped detailed figure, bloom pulse, breathe, parallax, grain, vignette, occasional glitch ticks
-4. **Replay**
+## VFX (canvas)
 
-`prefers-reduced-motion: reduce` shows the static detailed SVG full-bleed (no orb). Animation **pauses rAF** while `document.hidden`.
-
-Stack: Vite + React + TypeScript. Canvas orb engine + HTML/SVG composite.
+Bloom (downsample blur upsample), film grain, vignette, chromatic aberration, light rays, embers, glitch slices on transition. See `UPGRADE.md`.

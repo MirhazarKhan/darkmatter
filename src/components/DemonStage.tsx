@@ -18,17 +18,25 @@ import {
   type FrameLayer,
 } from '../lib/frames';
 import { coverFit, lerp, rgbGray, rgba } from '../lib/geom';
+import {
+  applyBloom,
+  drawGlitchSlices,
+  drawHeroWithCA,
+  drawLightRays,
+  drawShockwave,
+  drawTearBars,
+  drawVignette,
+  paintGrain,
+} from '../lib/vfx';
 
 type Phase = 'boot' | 'orb' | 'reveal' | 'alive' | 'static';
 
 const BG = '#000000';
-const VIEW_W = 168.81;
-const VIEW_H = 300;
-const SVG_URL = '/demon-detailed.svg';
+const HERO_URL = '/demon-hero.png';
 
 const DUR = {
   orb: 3400,
-  reveal: 2400,
+  reveal: 2200,
 } as const;
 
 function prefersReducedMotion(): boolean {
@@ -40,12 +48,6 @@ function prefersReducedMotion(): boolean {
 
 function clamp(n: number, a = 0, b = 1) {
   return Math.min(b, Math.max(a, n));
-}
-
-function pad3(n: number): string {
-  if (n < 10) return `00${n}`;
-  if (n < 100) return `0${n}`;
-  return String(n);
 }
 
 function paintGlow(
@@ -81,7 +83,6 @@ function paintGlow(
 
 function paintOrbFrame(
   ctx: CanvasRenderingContext2D,
-  dpr: number,
   viewW: number,
   viewH: number,
   layers: FrameLayer[] | undefined,
@@ -93,7 +94,6 @@ function paintOrbFrame(
   rgbSplit: number,
   pulse: number,
 ) {
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.globalAlpha = 1;
   ctx.globalCompositeOperation = 'source-over';
   if (fillBg) {
@@ -101,6 +101,8 @@ function paintOrbFrame(
     ctx.fillRect(0, 0, viewW, viewH);
   } else {
     ctx.clearRect(0, 0, viewW, viewH);
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, viewW, viewH);
   }
   if (!layers) return;
 
@@ -151,67 +153,8 @@ function paintOrbFrame(
   }
 }
 
-function drawShockwave(
-  ctx: CanvasRenderingContext2D,
-  cx: number,
-  cy: number,
-  t: number,
-) {
-  if (t <= 0 || t >= 1) return;
-  const r = lerp(20, Math.max(cx, cy) * 2.4, easeOutCubic(t));
-  const a = (1 - t) * 0.85;
-  ctx.save();
-  ctx.globalCompositeOperation = 'screen';
-  ctx.strokeStyle = rgba(255, 245, 230, a);
-  ctx.lineWidth = lerp(18, 2, t);
-  ctx.beginPath();
-  ctx.arc(cx, cy, r, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.strokeStyle = rgba(255, 70, 40, a * 0.45);
-  ctx.lineWidth = lerp(8, 1, t);
-  ctx.beginPath();
-  ctx.arc(cx, cy, r * 0.72, 0, Math.PI * 2);
-  ctx.stroke();
-  ctx.restore();
-}
-
-function drawTearBars(
-  ctx: CanvasRenderingContext2D,
-  w: number,
-  h: number,
-  amount: number,
-) {
-  if (amount < 0.04) return;
-  ctx.save();
-  ctx.globalCompositeOperation = 'screen';
-  const n = 2 + ((amount * 9) | 0);
-  for (let i = 0; i < n; i++) {
-    const y = Math.random() * h;
-    const hh = 1 + Math.random() * 12;
-    ctx.fillStyle = rgba(255, 255, 255, 0.08 + Math.random() * 0.22 * amount);
-    ctx.fillRect(0, y, w, hh);
-  }
-  ctx.restore();
-}
-
 export function DemonStage() {
-  const stageRef = useRef<HTMLDivElement>(null);
-  const heroRef = useRef<HTMLDivElement>(null);
-  const farRef = useRef<HTMLDivElement>(null);
-  const midRef = useRef<HTMLDivElement>(null);
-  const bloomRef = useRef<HTMLDivElement>(null);
-  const rgbRRef = useRef<HTMLDivElement>(null);
-  const rgbBRef = useRef<HTMLDivElement>(null);
-  const grainRef = useRef<HTMLCanvasElement>(null);
-  const orbRef = useRef<HTMLCanvasElement>(null);
-  const fxRef = useRef<HTMLCanvasElement>(null);
-  const vignetteRef = useRef<HTMLDivElement>(null);
-  const burnRef = useRef<HTMLDivElement>(null);
-  const flashRef = useRef<HTMLDivElement>(null);
-  const shockRef = useRef<HTMLDivElement>(null);
-  const hudRef = useRef<HTMLDivElement>(null);
-  const scanRef = useRef<HTMLDivElement>(null);
-
+  const mainRef = useRef<HTMLCanvasElement>(null);
   const phaseRef = useRef<Phase>('boot');
   const phaseStartRef = useRef(0);
   const rafRef = useRef(0);
@@ -220,6 +163,8 @@ export function DemonStage() {
   const pointerRef = useRef({ x: 0, y: 0 });
   const parallaxRef = useRef({ x: 0, y: 0 });
   const layersRef = useRef<FrameLayer[][] | null>(null);
+  const heroRef = useRef<ImageBitmap | null>(null);
+  const heroSizeRef = useRef({ w: 1013, h: 1800 });
   const embersRef = useRef<Ember[]>([]);
   const lastTsRef = useRef(0);
   const nextGlitchRef = useRef(0);
@@ -228,7 +173,13 @@ export function DemonStage() {
   const burstDoneRef = useRef(false);
   const viewRef = useRef({ w: 0, h: 0, dpr: 1 });
   const replayArmedRef = useRef(false);
-  const grainPaintRef = useRef<(n: number) => void>(() => {});
+  const sceneRef = useRef<HTMLCanvasElement | null>(null);
+  const bloomRef = useRef<HTMLCanvasElement | null>(null);
+  const tmpBufRef = useRef<{ data: Uint8ClampedArray | null; w: number; h: number }>({
+    data: null,
+    w: 0,
+    h: 0,
+  });
 
   const [showReplay, setShowReplay] = useState(false);
   const [ready, setReady] = useState(false);
@@ -242,11 +193,6 @@ export function DemonStage() {
     replayArmedRef.current = false;
     embersRef.current = [];
     setShowReplay(false);
-    const orb = orbRef.current;
-    if (orb) {
-      orb.style.opacity = '1';
-      orb.style.mixBlendMode = 'normal';
-    }
   }, []);
 
   useEffect(() => {
@@ -255,31 +201,27 @@ export function DemonStage() {
       try {
         const reduced = prefersReducedMotion();
         const skipFrames =
-          reduced || new URLSearchParams(window.location.search).get('phase') === 'alive';
-        const svgPromise = fetch(SVG_URL).then((res) => {
-          if (!res.ok) throw new Error(`Failed to load ${SVG_URL}: ${res.status}`);
-          return res.text();
-        });
+          reduced ||
+          new URLSearchParams(window.location.search).get('phase') === 'alive';
+
+        const heroPromise = fetch(HERO_URL)
+          .then((res) => {
+            if (!res.ok) throw new Error(`Failed to load ${HERO_URL}: ${res.status}`);
+            return res.blob();
+          })
+          .then((blob) => createImageBitmap(blob));
 
         const framesPromise = skipFrames
           ? Promise.resolve<FrameLayer[][] | null>(null)
           : loadFramesPack().then((pack) => parseAllFrames(pack.markups));
 
-        const [markupRaw, layers] = await Promise.all([svgPromise, framesPromise]);
-        if (cancelled) return;
-
-        let markup = markupRaw.replace(
-          /<svg\b([^>]*)>/,
-          (_m, attrs: string) => {
-            let a = attrs
-              .replace(/\s(width|height)="[^"]*"/g, '')
-              .replace(/\sclass="[^"]*"/g, '')
-              .replace(/\spreserveAspectRatio="[^"]*"/g, '');
-            if (!/viewBox=/.test(a)) a += ` viewBox="0 0 ${VIEW_W} ${VIEW_H}"`;
-            return `<svg class="hero-svg"${a} width="100%" height="100%" preserveAspectRatio="xMidYMin slice">`;
-          },
-        );
-        if (heroRef.current) heroRef.current.innerHTML = markup;
+        const [bmp, layers] = await Promise.all([heroPromise, framesPromise]);
+        if (cancelled) {
+          bmp.close();
+          return;
+        }
+        heroRef.current = bmp;
+        heroSizeRef.current = { w: bmp.width, h: bmp.height };
         layersRef.current = layers;
         setReady(true);
       } catch (err) {
@@ -290,72 +232,38 @@ export function DemonStage() {
     })();
     return () => {
       cancelled = true;
+      heroRef.current?.close();
+      heroRef.current = null;
     };
-  }, []);
-
-  useEffect(() => {
-    const canvas = grainRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d', { alpha: true });
-    if (!ctx) return;
-
-    const paintNoise = (alphaBase: number) => {
-      const w = Math.max(1, Math.floor(window.innerWidth / 2));
-      const h = Math.max(1, Math.floor(window.innerHeight / 2));
-      if (canvas.width !== w || canvas.height !== h) {
-        canvas.width = w;
-        canvas.height = h;
-        canvas.style.width = '100%';
-        canvas.style.height = '100%';
-      }
-      const img = ctx.createImageData(w, h);
-      const data = img.data;
-      const a = alphaBase | 0;
-      for (let i = 0; i < data.length; i += 4) {
-        const v = (Math.random() * 255) | 0;
-        data[i] = v;
-        data[i + 1] = v;
-        data[i + 2] = v;
-        data[i + 3] = a;
-      }
-      ctx.putImageData(img, 0, 0);
-    };
-
-    paintNoise(28);
-    grainPaintRef.current = paintNoise;
-    const onResize = () => paintNoise(28);
-    window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
   }, []);
 
   useEffect(() => {
     if (!ready) return;
 
     reducedRef.current = prefersReducedMotion();
+    sceneRef.current = document.createElement('canvas');
+    bloomRef.current = document.createElement('canvas');
 
     const resize = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const w = Math.max(1, Math.floor(window.innerWidth));
       const h = Math.max(1, Math.floor(window.innerHeight));
       viewRef.current = { w, h, dpr };
-      const orb = orbRef.current;
-      const fx = fxRef.current;
-      if (orb) {
-        orb.width = Math.floor(w * dpr);
-        orb.height = Math.floor(h * dpr);
-        orb.style.width = `${w}px`;
-        orb.style.height = `${h}px`;
+      const main = mainRef.current;
+      const scene = sceneRef.current;
+      if (main) {
+        main.width = Math.floor(w * dpr);
+        main.height = Math.floor(h * dpr);
+        main.style.width = `${w}px`;
+        main.style.height = `${h}px`;
       }
-      if (fx) {
-        fx.width = Math.floor(w * dpr);
-        fx.height = Math.floor(h * dpr);
-        fx.style.width = `${w}px`;
-        fx.style.height = `${h}px`;
+      if (scene) {
+        scene.width = Math.floor(w * dpr);
+        scene.height = Math.floor(h * dpr);
       }
     };
     resize();
     window.addEventListener('resize', resize, { passive: true });
-
 
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
     const onMq = () => {
@@ -392,6 +300,141 @@ export function DemonStage() {
       nextGlitchRef.current = performance.now() + 2800;
     }
 
+    const compositeHeroScene = (
+      sceneCtx: CanvasRenderingContext2D,
+      viewW: number,
+      viewH: number,
+      dpr: number,
+      zoom: number,
+      panX: number,
+      panY: number,
+      caPx: number,
+      alpha: number,
+      brightness: number,
+    ) => {
+      const hero = heroRef.current;
+      if (!hero) return;
+      sceneCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      sceneCtx.globalCompositeOperation = 'source-over';
+      sceneCtx.globalAlpha = 1;
+      sceneCtx.fillStyle = '#000';
+      sceneCtx.fillRect(0, 0, viewW, viewH);
+      sceneCtx.filter =
+        brightness !== 1
+          ? `brightness(${brightness}) contrast(1.08)`
+          : 'contrast(1.06)';
+      drawHeroWithCA(
+        sceneCtx,
+        hero,
+        viewW,
+        viewH,
+        heroSizeRef.current.w,
+        heroSizeRef.current.h,
+        zoom,
+        panX,
+        panY,
+        caPx,
+        alpha,
+      );
+      sceneCtx.filter = 'none';
+    };
+
+    const blitSceneToMain = (
+      mainCtx: CanvasRenderingContext2D,
+      scene: HTMLCanvasElement,
+      viewW: number,
+      viewH: number,
+      dpr: number,
+      bloomAmt: number,
+      grainAmt: number,
+      vignetteAmt: number,
+      rayPulse: number,
+      now: number,
+      glitchAmt: number,
+      shockT: number,
+      flashAmt: number,
+      burnAmt: number,
+    ) => {
+      mainCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      mainCtx.globalAlpha = 1;
+      mainCtx.globalCompositeOperation = 'source-over';
+      mainCtx.fillStyle = '#000';
+      mainCtx.fillRect(0, 0, viewW, viewH);
+      mainCtx.drawImage(scene, 0, 0, viewW, viewH);
+
+      const bloomCanvas = bloomRef.current;
+      const bloomCtx = bloomCanvas?.getContext('2d');
+      if (bloomCanvas && bloomCtx && bloomAmt > 0.02) {
+        applyBloom(
+          mainCtx,
+          scene,
+          bloomCanvas,
+          bloomCtx,
+          tmpBufRef.current,
+          bloomAmt,
+          viewW,
+          viewH,
+        );
+      }
+
+      drawLightRays(
+        mainCtx,
+        viewW * 0.5 + parallaxRef.current.x * 20,
+        viewH * 0.36 + parallaxRef.current.y * 12,
+        Math.max(viewW, viewH) * 0.85,
+        rayPulse,
+        now,
+      );
+
+      if (glitchAmt > 0.05) {
+        drawGlitchSlices(mainCtx, scene, viewW, viewH, glitchAmt);
+        drawTearBars(mainCtx, viewW, viewH, glitchAmt);
+      }
+
+      if (shockT > 0 && shockT < 1) {
+        drawShockwave(mainCtx, viewW * 0.5, viewH * 0.4, shockT);
+      }
+
+      if (burnAmt > 0.01) {
+        mainCtx.save();
+        mainCtx.globalCompositeOperation = 'screen';
+        const g = mainCtx.createRadialGradient(
+          viewW * 0.5,
+          viewH * 0.4,
+          0,
+          viewW * 0.5,
+          viewH * 0.4,
+          Math.max(viewW, viewH) * 0.7,
+        );
+        g.addColorStop(0, rgba(255, 255, 255, burnAmt));
+        g.addColorStop(0.18, rgba(255, 220, 170, burnAmt * 0.85));
+        g.addColorStop(0.4, rgba(255, 70, 30, burnAmt * 0.4));
+        g.addColorStop(1, rgba(0, 0, 0, 0));
+        mainCtx.fillStyle = g;
+        mainCtx.fillRect(0, 0, viewW, viewH);
+        mainCtx.restore();
+      }
+
+      if (flashAmt > 0.01) {
+        mainCtx.save();
+        mainCtx.globalCompositeOperation = 'screen';
+        mainCtx.fillStyle = rgba(255, 255, 255, flashAmt);
+        mainCtx.fillRect(0, 0, viewW, viewH);
+        mainCtx.restore();
+      }
+
+      drawEmbers(mainCtx, embersRef.current);
+
+      drawVignette(mainCtx, viewW, viewH, vignetteAmt);
+
+      grainTickRef.current += 1;
+      if (grainTickRef.current % 2 === 0 || grainAmt > 30) {
+        paintGrain(mainCtx, viewW, viewH, grainAmt, (now * 0.1) | 0);
+      } else {
+        paintGrain(mainCtx, viewW, viewH, Math.max(18, grainAmt - 4), grainTickRef.current);
+      }
+    };
+
     const frame = (now: number) => {
       if (hiddenRef.current) {
         rafRef.current = 0;
@@ -399,284 +442,253 @@ export function DemonStage() {
       }
 
       try {
-      const dt = lastTsRef.current ? Math.min(48, now - lastTsRef.current) : 16;
-      lastTsRef.current = now;
+        const dt = lastTsRef.current ? Math.min(48, now - lastTsRef.current) : 16;
+        lastTsRef.current = now;
 
-      const hero = heroRef.current;
-      const far = farRef.current;
-      const mid = midRef.current;
-      const bloom = bloomRef.current;
-      const stage = stageRef.current;
-      const vignette = vignetteRef.current;
-      const orbCanvas = orbRef.current;
-      const fxCanvas = fxRef.current;
-      const burn = burnRef.current;
-      const flash = flashRef.current;
-      const shock = shockRef.current;
-      const hud = hudRef.current;
-      const rgbR = rgbRRef.current;
-      const rgbB = rgbBRef.current;
-      const scan = scanRef.current;
-      if (!hero || !far || !mid || !bloom || !stage || !orbCanvas || !fxCanvas) return;
+        const main = mainRef.current;
+        const scene = sceneRef.current;
+        if (!main || !scene) return;
+        const mainCtx = main.getContext('2d', { alpha: false, desynchronized: true });
+        const sceneCtx = scene.getContext('2d', { alpha: false, desynchronized: true });
+        if (!mainCtx || !sceneCtx) return;
 
-      const orbCtx = orbCanvas.getContext('2d', { alpha: true, desynchronized: true });
-      const fxCtx = fxCanvas.getContext('2d', { alpha: true, desynchronized: true });
-      if (!orbCtx || !fxCtx) return;
+        const { w: viewW, h: viewH, dpr } = viewRef.current;
+        const layersPack = layersRef.current;
 
-      const { w: viewW, h: viewH, dpr } = viewRef.current;
-      const layersPack = layersRef.current;
+        const driftX = Math.sin(now * 0.00022) * 0.35;
+        const driftY = Math.cos(now * 0.00018) * 0.25;
+        const tx = pointerRef.current.x * 0.55 + driftX;
+        const ty = pointerRef.current.y * 0.45 + driftY;
+        parallaxRef.current.x += (tx - parallaxRef.current.x) * 0.045;
+        parallaxRef.current.y += (ty - parallaxRef.current.y) * 0.045;
+        const px = parallaxRef.current.x;
+        const py = parallaxRef.current.y;
 
-      const driftX = Math.sin(now * 0.00022) * 0.35;
-      const driftY = Math.cos(now * 0.00018) * 0.25;
-      const tx = pointerRef.current.x * 0.55 + driftX;
-      const ty = pointerRef.current.y * 0.45 + driftY;
-      parallaxRef.current.x += (tx - parallaxRef.current.x) * 0.045;
-      parallaxRef.current.y += (ty - parallaxRef.current.y) * 0.045;
-      const px = parallaxRef.current.x;
-      const py = parallaxRef.current.y;
+        // advance ember physics with real dt
+        tickEmbers(embersRef.current, dt);
 
-      fxCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      fxCtx.clearRect(0, 0, viewW, viewH);
-
-      const applyHeroCover = (
-        opacity: number,
-        extraScale: number,
-        clip: string | null,
-        filter: string,
-        rgbAmt: number,
-      ) => {
-        hero.style.opacity = String(opacity);
-        hero.style.clipPath = clip ?? 'none';
-        hero.style.filter = filter;
-        hero.style.transform = `translate(${px * 10}px, ${py * 8}px) scale(${extraScale})`;
-        far.style.transform = `translate(${px * -16}px, ${py * -12}px) scale(${1.18 * extraScale})`;
-        mid.style.transform = `translate(${px * -8}px, ${py * -6}px) scale(${1.1 * extraScale})`;
-        if (rgbR) {
-          rgbR.style.opacity = String(rgbAmt * 0.16);
-          rgbR.style.transform = `translate(${-4 - rgbAmt * 8 + px * 8}px, ${py * 6}px) scale(${extraScale})`;
-        }
-        if (rgbB) {
-          rgbB.style.opacity = String(rgbAmt * 0.16);
-          rgbB.style.transform = `translate(${4 + rgbAmt * 8 + px * 8}px, ${py * 6}px) scale(${extraScale})`;
-        }
-      };
-
-      if (phaseRef.current === 'static') {
-        orbCanvas.style.opacity = '0';
-        bloom.style.opacity = '0.58';
-        bloom.style.transform = 'translate(-50%, -50%) scale(1.05)';
-        applyHeroCover(1, 1.06, null, 'contrast(1.08) brightness(1.02)', 0);
-        far.style.opacity = '0.42';
-        mid.style.opacity = '0.5';
-        stage.style.transform = 'none';
-        if (vignette) vignette.style.opacity = '1';
-        if (burn) burn.style.opacity = '0';
-        if (flash) flash.style.opacity = '0';
-        if (hud) hud.style.opacity = '0';
-        if (scan) scan.style.opacity = '0.16';
-        return;
-      }
-
-      let phase = phaseRef.current;
-      let elapsed = now - phaseStartRef.current;
-
-      if (phase === 'orb' && elapsed >= DUR.orb) {
-        phase = 'reveal';
-        phaseRef.current = phase;
-        phaseStartRef.current = now;
-        elapsed = 0;
-      } else if (phase === 'reveal' && elapsed >= DUR.reveal) {
-        phase = 'alive';
-        phaseRef.current = phase;
-        phaseStartRef.current = now;
-        elapsed = 0;
-        if (!replayArmedRef.current) {
-          replayArmedRef.current = true;
-          setShowReplay(true);
-          nextGlitchRef.current = now + 4500;
-        }
-      }
-
-      stage.style.transform = `translate(${px * 6}px, ${py * 5}px)`;
-
-      if (phase === 'orb') {
-        const t = clamp(elapsed / DUR.orb);
-        const colorway = calculateColorway(t);
-        const frameIdx = Math.min(
-          FRAME_COUNT - 1,
-          Math.floor(clamp(colorway.localT) * FRAME_COUNT),
-        );
-        const endGlitch = smoothstep(clamp((t - 0.82) / 0.18));
-        const pulse = 0.5 + 0.5 * Math.sin(now * 0.008);
-        const zoom = 1.04 + 0.06 * Math.sin(t * Math.PI * 2) + endGlitch * 0.22;
-        const rgbAmt = endGlitch * 14;
-
-        orbCanvas.style.opacity = '1';
-        orbCanvas.style.mixBlendMode = 'normal';
-        paintOrbFrame(
-          orbCtx,
-          dpr,
-          viewW,
-          viewH,
-          layersPack?.[frameIdx],
-          colorway.bgVal,
-          colorway.vectorVal,
-          zoom,
-          0.08 + endGlitch * 0.9,
-          true,
-          rgbAmt,
-          pulse,
-        );
-
-        applyHeroCover(0, 1.2, 'circle(0% at 50% 38%)', 'none', endGlitch);
-        bloom.style.opacity = String(0.12 + 0.25 * pulse + endGlitch * 0.3);
-        bloom.style.transform = `translate(-50%, -50%) scale(${0.7 + 0.5 * pulse})`;
-        far.style.opacity = '0';
-        mid.style.opacity = '0';
-        if (burn) burn.style.opacity = String(endGlitch * 0.25);
-        if (flash) flash.style.opacity = '0';
-        if (shock) {
-          shock.style.opacity = '0';
-          shock.style.transform = 'translate(-50%, -50%) scale(0.2)';
-        }
-        if (vignette) vignette.style.opacity = String(0.75 + endGlitch * 0.15);
-        if (hud) {
-          hud.style.opacity = String(0.7);
-          hud.textContent = `GLITCH ORB  ·  FRAME ${pad3(frameIdx + 1)} / ${FRAME_COUNT}`;
-        }
-        if (scan) scan.style.opacity = String(0.32 + endGlitch * 0.2);
-
-        grainTickRef.current += 1;
-        if (grainTickRef.current % 3 === 0) grainPaintRef.current(32 + endGlitch * 20);
-
-        drawTearBars(fxCtx, viewW, viewH, 0.12 + endGlitch);
-      } else if (phase === 'reveal') {
-        const raw = clamp(elapsed / DUR.reveal);
-        const t = easeOutCubic(raw);
-        const flashPeak = Math.exp(-Math.pow((raw - 0.16) * 18, 2));
-        const burnAmt =
-          Math.exp(-Math.pow((raw - 0.18) * 9, 2)) * 0.95 +
-          (1 - smoothstep(clamp((raw - 0.1) / 0.45))) * 0.25;
-        const zoom = lerp(1.12, 3.6, easeInOutCubic(clamp(raw / 0.7)));
-        const rgbAmt = lerp(16, 0, smoothstep(clamp((raw - 0.35) / 0.5)));
-        const fillBg = raw < 0.2;
-        const orbFade = 1 - smoothstep(clamp((raw - 0.38) / 0.5));
-        const heroIn = smoothstep(clamp((raw - 0.14) / 0.55));
-        const radius = 6 + 140 * easeInOutCubic(clamp((raw - 0.1) / 0.6));
-        const shockT = clamp((raw - 0.16) / 0.42);
-        const lastIdx = FRAME_COUNT - 1;
-        const stutter =
-          raw < 0.22 ? lastIdx - ((Math.random() * 7 * (1 - raw / 0.22)) | 0) : lastIdx;
-        const frameIdx = Math.max(0, stutter);
-
-        orbCanvas.style.mixBlendMode = raw < 0.22 ? 'normal' : 'screen';
-        orbCanvas.style.opacity = String(orbFade);
-        paintOrbFrame(
-          orbCtx,
-          dpr,
-          viewW,
-          viewH,
-          layersPack?.[frameIdx],
-          fillBg ? lerp(255, 0, clamp(raw / 0.2)) : 0,
-          fillBg ? lerp(0, 255, clamp(raw / 0.2)) : 255,
-          zoom,
-          0.55 * (1 - raw) + 0.15,
-          fillBg,
-          Math.max(4, rgbAmt),
-          1,
-        );
-
-        applyHeroCover(
-          heroIn,
-          lerp(1.22, 1.06, t),
-          `circle(${radius}% at 50% 36%)`,
-          `brightness(${0.75 + 0.4 * heroIn + flashPeak * 0.8}) contrast(${1.05 + flashPeak * 0.4})`,
-          rgbAmt / 16,
-        );
-
-        bloom.style.opacity = String(
-          0.2 + 0.7 * flashPeak + 0.5 * smoothstep(clamp((raw - 0.2) / 0.4)),
-        );
-        bloom.style.transform = `translate(-50%, -50%) scale(${0.8 + 0.7 * t})`;
-        far.style.opacity = String(smoothstep(clamp((raw - 0.12) / 0.45)) * 0.45);
-        mid.style.opacity = String(smoothstep(clamp((raw - 0.2) / 0.5)) * 0.55);
-
-        if (flash) flash.style.opacity = String(flashPeak);
-        if (burn) {
-          burn.style.opacity = String(burnAmt);
-          burn.style.transform = `scale(${1 + t * 0.6})`;
-        }
-        if (shock) {
-          shock.style.opacity = String((1 - shockT) * (raw > 0.15 ? 1 : 0) * 0.9);
-          shock.style.borderColor = `rgba(255,245,230,${(1 - shockT).toFixed(3)})`;
-          shock.style.boxShadow = `0 0 ${40 + shockT * 80}px rgba(255,240,220,${(0.45 * (1 - shockT)).toFixed(3)})`;
-          shock.style.transform = `translate(-50%, -50%) scale(${lerp(0.2, 78, easeOutCubic(shockT))})`;
-        }
-        if (vignette) vignette.style.opacity = String(0.65 + 0.3 * t);
-        if (hud) hud.style.opacity = String(1 - smoothstep(raw * 1.6));
-        if (scan) scan.style.opacity = String(0.4 * (1 - t) + 0.18);
-
-        if (!burstDoneRef.current && raw > 0.14) {
-          burstDoneRef.current = true;
-          embersRef.current.push(...spawnBurst(viewW * 0.5, viewH * 0.4, 90, 1.6));
+        if (phaseRef.current === 'static') {
+          compositeHeroScene(sceneCtx, viewW, viewH, dpr, 1.08, 0, 0, 0, 1, 1.02);
+          // clear embers draw path by temporarily swapping — blit handles draw
+          const saved = embersRef.current;
+          embersRef.current = [];
+          blitSceneToMain(
+            mainCtx,
+            scene,
+            viewW,
+            viewH,
+            dpr,
+            0.72,
+            26,
+            0.95,
+            0.55,
+            now,
+            0,
+            0,
+            0,
+            0,
+          );
+          embersRef.current = saved;
+          return;
         }
 
-        drawShockwave(fxCtx, viewW * 0.5, viewH * 0.4, shockT);
-        drawTearBars(fxCtx, viewW, viewH, (1 - raw) * 0.7);
-        grainTickRef.current += 1;
-        if (grainTickRef.current % 2 === 0) grainPaintRef.current(40);
-      } else if (phase === 'alive') {
-        const breath = 0.5 + 0.5 * Math.sin(now * 0.00115);
-        const scale = 1.05 + 0.018 * easeSineInOut(breath);
-        const glowPulse = 0.5 + 0.5 * Math.sin(now * 0.0018);
-        const smokePulse = 0.34 + 0.14 * Math.sin(now * 0.0009);
+        let phase = phaseRef.current;
+        let elapsed = now - phaseStartRef.current;
 
-        if (now > nextGlitchRef.current) {
-          glitchUntilRef.current = now + 70 + Math.random() * 140;
-          nextGlitchRef.current = now + 1800 + Math.random() * 3200;
-        }
-        const ticking = now < glitchUntilRef.current;
-        const tickAmt = ticking ? 0.7 + Math.random() * 0.3 : 0;
-
-        orbCanvas.style.opacity = '0';
-        orbCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        orbCtx.clearRect(0, 0, viewW, viewH);
-
-        const dx = ticking ? 3 + Math.random() * 5 : 0;
-        applyHeroCover(
-          1,
-          scale,
-          null,
-          `brightness(${1 + 0.05 * glowPulse + tickAmt * 0.08}) contrast(1.08)` +
-            (ticking
-              ? ` drop-shadow(${dx}px 0 0 rgba(255,40,70,0.45)) drop-shadow(${-dx}px 0 0 rgba(40,220,255,0.45))`
-              : ''),
-          tickAmt * 0.25,
-        );
-        if (ticking) {
-          hero.style.transform += ` translateX(${(Math.random() - 0.5) * 10}px)`;
+        if (phase === 'orb' && elapsed >= DUR.orb) {
+          phase = 'reveal';
+          phaseRef.current = phase;
+          phaseStartRef.current = now;
+          elapsed = 0;
+        } else if (phase === 'reveal' && elapsed >= DUR.reveal) {
+          phase = 'alive';
+          phaseRef.current = phase;
+          phaseStartRef.current = now;
+          elapsed = 0;
+          if (!replayArmedRef.current) {
+            replayArmedRef.current = true;
+            setShowReplay(true);
+            nextGlitchRef.current = now + 4500;
+          }
         }
 
-        bloom.style.opacity = String(0.48 + 0.22 * glowPulse);
-        bloom.style.transform = `translate(-50%, -50%) scale(${1.05 + 0.12 * glowPulse})`;
-        far.style.opacity = String(smokePulse);
-        mid.style.opacity = String(0.44 + 0.12 * glowPulse);
-        if (burn) burn.style.opacity = '0';
-        if (flash) flash.style.opacity = '0';
-        if (shock) shock.style.opacity = '0';
-        if (vignette) vignette.style.opacity = String(0.92 + 0.06 * glowPulse);
-        if (hud) hud.style.opacity = '0';
-        if (scan) scan.style.opacity = String(0.18 + tickAmt * 0.12);
+        if (phase === 'orb') {
+          const t = clamp(elapsed / DUR.orb);
+          const colorway = calculateColorway(t);
+          const frameIdx = Math.min(
+            FRAME_COUNT - 1,
+            Math.floor(clamp(colorway.localT) * FRAME_COUNT),
+          );
+          const endGlitch = smoothstep(clamp((t - 0.82) / 0.18));
+          const pulse = 0.5 + 0.5 * Math.sin(now * 0.008);
+          const zoom = 1.04 + 0.06 * Math.sin(t * Math.PI * 2) + endGlitch * 0.22;
+          const rgbAmt = endGlitch * 14;
 
-        if (Math.random() < 0.04) embersRef.current.push(spawnIdle(viewW, viewH));
-        if (ticking) drawTearBars(fxCtx, viewW, viewH, tickAmt);
+          sceneCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          paintOrbFrame(
+            sceneCtx,
+            viewW,
+            viewH,
+            layersPack?.[frameIdx],
+            colorway.bgVal,
+            colorway.vectorVal,
+            zoom,
+            0.08 + endGlitch * 0.9,
+            true,
+            rgbAmt,
+            pulse,
+          );
 
-        grainTickRef.current += 1;
-        if (grainTickRef.current % 4 === 0) grainPaintRef.current(26);
-      }
+          blitSceneToMain(
+            mainCtx,
+            scene,
+            viewW,
+            viewH,
+            dpr,
+            0.35 + endGlitch * 0.4,
+            32 + endGlitch * 16,
+            0.8 + endGlitch * 0.15,
+            0.25 + pulse * 0.2,
+            now,
+            0.12 + endGlitch,
+            0,
+            0,
+            endGlitch * 0.2,
+          );
+        } else if (phase === 'reveal') {
+          const raw = clamp(elapsed / DUR.reveal);
+          const t = easeOutCubic(raw);
+          const flashPeak = Math.exp(-Math.pow((raw - 0.16) * 18, 2));
+          const burnAmt =
+            Math.exp(-Math.pow((raw - 0.18) * 9, 2)) * 0.95 +
+            (1 - smoothstep(clamp((raw - 0.1) / 0.45))) * 0.25;
+          const orbZoom = lerp(1.12, 3.6, easeInOutCubic(clamp(raw / 0.7)));
+          const rgbAmt = lerp(16, 0, smoothstep(clamp((raw - 0.35) / 0.5)));
+          const fillBg = raw < 0.2;
+          const orbFade = 1 - smoothstep(clamp((raw - 0.32) / 0.45));
+          const heroIn = smoothstep(clamp((raw - 0.12) / 0.5));
+          const shockT = clamp((raw - 0.16) / 0.42);
+          const lastIdx = FRAME_COUNT - 1;
+          const stutter =
+            raw < 0.22 ? lastIdx - ((Math.random() * 7 * (1 - raw / 0.22)) | 0) : lastIdx;
+          const frameIdx = Math.max(0, stutter);
 
-      tickEmbers(embersRef.current, dt);
-      drawEmbers(fxCtx, embersRef.current);
+          // scene = orb under + hero over
+          sceneCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          if (orbFade > 0.02) {
+            paintOrbFrame(
+              sceneCtx,
+              viewW,
+              viewH,
+              layersPack?.[frameIdx],
+              fillBg ? lerp(255, 0, clamp(raw / 0.2)) : 0,
+              fillBg ? lerp(0, 255, clamp(raw / 0.2)) : 255,
+              orbZoom,
+              0.55 * (1 - raw) + 0.15,
+              fillBg,
+              Math.max(4, rgbAmt),
+              1,
+            );
+            if (!fillBg) {
+              // keep black under when orb is screen-fading
+              sceneCtx.globalAlpha = 1;
+            }
+          } else {
+            sceneCtx.fillStyle = '#000';
+            sceneCtx.fillRect(0, 0, viewW, viewH);
+          }
+
+          if (heroIn > 0.01 && heroRef.current) {
+            sceneCtx.save();
+            sceneCtx.globalAlpha = heroIn;
+            if (orbFade > 0.2) sceneCtx.globalCompositeOperation = 'screen';
+            else sceneCtx.globalCompositeOperation = 'source-over';
+            sceneCtx.filter = `brightness(${0.75 + 0.4 * heroIn + flashPeak * 0.8}) contrast(${1.05 + flashPeak * 0.4})`;
+            drawHeroWithCA(
+              sceneCtx,
+              heroRef.current,
+              viewW,
+              viewH,
+              heroSizeRef.current.w,
+              heroSizeRef.current.h,
+              lerp(1.22, 1.08, t),
+              px * 10,
+              py * 8,
+              rgbAmt * 0.55,
+              1,
+            );
+            sceneCtx.filter = 'none';
+            sceneCtx.restore();
+          }
+
+          if (!burstDoneRef.current && raw > 0.14) {
+            burstDoneRef.current = true;
+            embersRef.current.push(...spawnBurst(viewW * 0.5, viewH * 0.4, 100, 1.7));
+          }
+
+          blitSceneToMain(
+            mainCtx,
+            scene,
+            viewW,
+            viewH,
+            dpr,
+            0.35 + 0.7 * flashPeak + 0.45 * heroIn,
+            40,
+            0.7 + 0.25 * t,
+            0.4 + flashPeak,
+            now,
+            (1 - raw) * 0.85,
+            shockT,
+            flashPeak,
+            burnAmt,
+          );
+        } else if (phase === 'alive') {
+          const breath = 0.5 + 0.5 * Math.sin(now * 0.00115);
+          const scale = 1.06 + 0.02 * easeSineInOut(breath);
+          const glowPulse = 0.5 + 0.5 * Math.sin(now * 0.0018);
+
+          if (now > nextGlitchRef.current) {
+            glitchUntilRef.current = now + 70 + Math.random() * 140;
+            nextGlitchRef.current = now + 1800 + Math.random() * 3200;
+          }
+          const ticking = now < glitchUntilRef.current;
+          const tickAmt = ticking ? 0.7 + Math.random() * 0.3 : 0;
+          const jx = ticking ? (Math.random() - 0.5) * 10 : 0;
+
+          compositeHeroScene(
+            sceneCtx,
+            viewW,
+            viewH,
+            dpr,
+            scale,
+            px * 12 + jx,
+            py * 9,
+            tickAmt * 4,
+            1,
+            1 + 0.05 * glowPulse + tickAmt * 0.08,
+          );
+
+          if (Math.random() < 0.045) {
+            embersRef.current.push(spawnIdle(viewW, viewH));
+          }
+
+          blitSceneToMain(
+            mainCtx,
+            scene,
+            viewW,
+            viewH,
+            dpr,
+            0.55 + 0.28 * glowPulse,
+            26 + tickAmt * 10,
+            0.9 + 0.06 * glowPulse,
+            0.45 + 0.35 * glowPulse,
+            now,
+            tickAmt,
+            0,
+            0,
+            0,
+          );
+        }
       } finally {
         if (!hiddenRef.current) {
           rafRef.current = requestAnimationFrame(frame);
@@ -718,31 +730,9 @@ export function DemonStage() {
     };
   }, [ready, restart]);
 
-  const plateStyle = {
-    backgroundImage: `url(${SVG_URL})`,
-  } as const;
-
   return (
     <div className="demon-root" style={{ background: BG }}>
-      <canvas ref={orbRef} className="orb-canvas" aria-hidden />
-
-      <div className="demon-stage" ref={stageRef}>
-        <div ref={farRef} className="depth-layer depth-far" style={plateStyle} aria-hidden />
-        <div ref={midRef} className="depth-layer depth-mid" style={plateStyle} aria-hidden />
-        <div ref={bloomRef} className="soft-bloom" aria-hidden />
-        <div ref={heroRef} className="hero-frame" role="img" aria-label="Detailed demonic figure" />
-        <div ref={rgbRRef} className="rgb-plate rgb-r" style={plateStyle} aria-hidden />
-        <div ref={rgbBRef} className="rgb-plate rgb-b" style={plateStyle} aria-hidden />
-      </div>
-
-      <canvas ref={fxRef} className="fx-canvas" aria-hidden />
-      <div ref={shockRef} className="shockwave" aria-hidden />
-      <div ref={burnRef} className="film-burn" aria-hidden />
-      <div ref={flashRef} className="flash" aria-hidden />
-      <div ref={scanRef} className="scanlines" aria-hidden />
-      <div ref={vignetteRef} className="vignette" aria-hidden />
-      <canvas ref={grainRef} className="grain" aria-hidden />
-      <div ref={hudRef} className="cine-hud" aria-hidden />
+      <canvas ref={mainRef} className="main-canvas" aria-label="Demonic figure stage" />
 
       {!ready && !loadError && <div className="boot-msg">Loading</div>}
       {loadError && <div className="boot-msg">{loadError}</div>}
