@@ -6,21 +6,32 @@
   padding: 0;
 }
 
+html {
+  width: 100%;
+  background: #000000;
+  color-scheme: dark;
+}
+
 html,
 body,
 #root {
   width: 100%;
-  height: 100%;
-  overflow: hidden;
+  min-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
   background: #000000;
   color: #e8e8e2;
   font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
 }
 
+.page {
+  width: 100%;
+  background: #000000;
+}
+
 .demon-root {
-  position: fixed;
-  inset: 0;
-  width: 100vw;
+  position: relative;
+  width: 100%;
   height: 100dvh;
   overflow: hidden;
   background: #000000;
@@ -78,4 +89,28 @@ body,
 .replay-btn:focus-visible {
   outline: 1px solid #e8e8e2;
   outline-offset: 2px;
+}
+
+.hand-scroll-root {
+  position: relative;
+  width: 100%;
+  background: #000000;
+}
+
+.hand-scroll-sticky {
+  position: sticky;
+  top: 0;
+  width: 100%;
+  height: 100dvh;
+  overflow: hidden;
+  background: #000000;
+}
+
+.hand-scroll-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  background: #000000;
 }
