@@ -7,6 +7,7 @@ var fboHelper = require('../fboHelper');
 var undef;
 
 exports.init = init;
+exports.dispose = dispose;
 exports.resize = resize;
 exports.render = render;
 exports.visualizeTarget = undef;
@@ -19,7 +20,7 @@ function init(renderer, scene, camera) {
 
     _renderer = renderer;
     _scene = scene;
-    _camera = _camera;
+    _camera = camera;
 
     effectComposer.init(renderer, scene, camera);
 
@@ -29,8 +30,14 @@ function init(renderer, scene, camera) {
     fxaa.init();
     effectComposer.queue.push(fxaa);
 
-    motionBlur.init();
-    effectComposer.queue.push(motionBlur);
+    var gl = renderer.getContext();
+    motionBlur.supported = !!(gl.getExtension('OES_texture_float') && gl.getExtension('OES_texture_float_linear'));
+    if(motionBlur.supported) {
+        motionBlur.init();
+        effectComposer.queue.push(motionBlur);
+    } else {
+        motionBlur.enabled = false;
+    }
 
     bloom.init();
     effectComposer.queue.push(bloom);
@@ -50,4 +57,14 @@ function render(dt) {
         fboHelper.copy(exports.visualizeTarget);
     }
 
+}
+
+function dispose() {
+    effectComposer.dispose();
+    // Also cover effects that failed during initialization before joining the queue.
+    fxaa.dispose();
+    motionBlur.dispose();
+    bloom.dispose();
+    exports.visualizeTarget = undef;
+    _renderer = _scene = _camera = undef;
 }

@@ -3,6 +3,7 @@ var THREE = require('three');
 var shaderParse = require('../helpers/shaderParse');
 var glslify = require('glslify');
 var simulator = require('./simulator');
+var particleTrails = require('./particleTrails');
 var MeshMotionMaterial = require('./postprocessing/motionBlur/MeshMotionMaterial');
 
 var undef;
@@ -10,6 +11,7 @@ var undef;
 var container = exports.container = undef;
 exports.init = init;
 exports.update = update;
+exports.dispose = dispose;
 
 var _renderer;
 var _particleMesh;
@@ -19,6 +21,7 @@ var _meshes;
 var _color1;
 var _color2;
 var _tmpColor;
+var _possessionColor;
 
 var TEXTURE_WIDTH = settings.simulatorTextureWidth;
 var TEXTURE_HEIGHT = settings.simulatorTextureHeight;
@@ -31,6 +34,7 @@ function init(renderer) {
     _tmpColor = new THREE.Color();
     _color1 = new THREE.Color(settings.color1);
     _color2 = new THREE.Color(settings.color2);
+    _possessionColor = new THREE.Color(settings.possessionColor || '#ff0204');
 
     _meshes = [
         _triangleMesh = _createTriangleMesh(),
@@ -38,6 +42,7 @@ function init(renderer) {
     ];
     _triangleMesh.visible = false;
     _particleMesh.visible = false;
+    particleTrails.init(container, _possessionColor);
 
     _renderer = renderer;
 
@@ -61,7 +66,9 @@ function _createParticleMesh() {
             {
                 texturePosition: { type: 't', value: undef },
                 color1: { type: 'c', value: undef },
-                color2: { type: 'c', value: undef }
+                color2: { type: 'c', value: undef },
+                possession: { type: 'f', value: 0 },
+                possessionColor: { type: 'c', value: undef }
             }
         ]),
         vertexShader: shaderParse(glslify('../glsl/particles.vert')),
@@ -71,8 +78,10 @@ function _createParticleMesh() {
 
     material.uniforms.color1.value = _color1;
     material.uniforms.color2.value = _color2;
+    material.uniforms.possessionColor.value = _possessionColor;
 
     var mesh = new THREE.Points( geometry, material );
+    mesh.frustumCulled = false;
 
     mesh.customDistanceMaterial = new THREE.ShaderMaterial( {
         uniforms: {
@@ -178,6 +187,8 @@ function _createTriangleMesh() {
                 flipRatio: { type: 'f', value: 0 },
                 color1: { type: 'c', value: undef },
                 color2: { type: 'c', value: undef },
+                possession: { type: 'f', value: 0 },
+                possessionColor: { type: 'c', value: undef },
                 cameraMatrix: { type: 'm4', value: undef }
             }
         ]),
@@ -188,9 +199,11 @@ function _createTriangleMesh() {
 
     material.uniforms.color1.value = _color1;
     material.uniforms.color2.value = _color2;
+    material.uniforms.possessionColor.value = _possessionColor;
     material.uniforms.cameraMatrix.value = settings.camera.matrixWorld;
 
     var mesh = new THREE.Mesh( geometry, material );
+    mesh.frustumCulled = false;
 
     mesh.customDistanceMaterial = new THREE.ShaderMaterial( {
         uniforms: {
@@ -238,15 +251,29 @@ function update(dt) {
     _tmpColor.setStyle(settings.color2);
     _color2.lerp(_tmpColor, 0.05);
 
+    var possession = Math.max(0, Math.min(1, Number(settings.possession) || 0));
+    _possessionColor.setStyle(settings.possessionColor || '#ff0204');
+
     for(var i = 0; i < 2; i++) {
         mesh = _meshes[i];
+        mesh.material.uniforms.possession.value = possession;
         mesh.material.uniforms.texturePosition.value = simulator.positionRenderTarget;
         mesh.customDistanceMaterial.uniforms.texturePosition.value = simulator.positionRenderTarget;
-        mesh.motionMaterial.uniforms.texturePrevPosition.value = simulator.prevPositionRenderTarget;
-        if(mesh.material.uniforms.flipRatio ) {
+        mesh.motionMaterial.uniforms.texturePosition.value = simulator.positionRenderTarget;
+        mesh.motionMaterial.uniforms.texturePrevPosition.value = dt > 0 ? simulator.prevPositionRenderTarget : simulator.positionRenderTarget;
+        if(mesh.material.uniforms.flipRatio && dt > 0) {
             mesh.material.uniforms.flipRatio.value ^= 1;
             mesh.customDistanceMaterial.uniforms.flipRatio.value ^= 1;
             mesh.motionMaterial.uniforms.flipRatio.value ^= 1;
         }
     }
+    particleTrails.update(dt);
+}
+
+function dispose() {
+    particleTrails.dispose();
+    // The experience owns disposal of mesh resources; release the singleton references.
+    container = exports.container = undef;
+    _renderer = _particleMesh = _triangleMesh = _meshes = undef;
+    _color1 = _color2 = _tmpColor = _possessionColor = undef;
 }

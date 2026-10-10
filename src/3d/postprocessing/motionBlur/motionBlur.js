@@ -13,6 +13,7 @@ var _super = Effect.prototype;
 exports.init = init;
 exports.resize = resize;
 exports.render = render;
+exports.dispose = dispose;
 
 exports.useSampling = false;
 
@@ -269,4 +270,34 @@ function _setObjectAfterState(obj) {
     } else {
         obj.visible = true;
     }
+}
+
+function dispose() {
+    for (var i = 0; i < _visibleCache.length; i++) {
+        var object = _visibleCache[i];
+        if (object.motionMaterial && object._tmpMaterial) {
+            object.material = object._tmpMaterial;
+            object._tmpMaterial = undef;
+        } else if (object.material) {
+            object.visible = true;
+        }
+    }
+    _visibleCache = [];
+    var resources = [_motionRenderTarget, _linesRenderTarget, _linesGeometry, _linesMaterial, _samplingMaterial];
+    var disposed = [];
+    for (i = 0; i < resources.length; i++) {
+        var resource = resources[i];
+        if (resource && disposed.indexOf(resource) === -1) {
+            disposed.push(resource);
+            resource.dispose();
+        }
+    }
+    _motionRenderTarget = _linesRenderTarget = undef;
+    _lines = _linesCamera = _linesScene = undef;
+    _linesPositions = _linesPositionAttribute = _linesGeometry = _linesMaterial = undef;
+    _samplingMaterial = undef;
+    _prevUseDithering = _prevUseSampling = undef;
+    _width = _height = undef;
+    exports.supported = false;
+    _super.dispose.call(this);
 }

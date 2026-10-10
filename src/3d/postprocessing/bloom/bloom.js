@@ -12,6 +12,7 @@ var _super = Effect.prototype;
 
 exports.init = init;
 exports.render = render;
+exports.dispose = dispose;
 
 exports.blurRadius = 1.3;
 exports.amount = 0.3;
@@ -63,4 +64,10 @@ function render(dt, renderTarget, toScreen) {
     this.uniforms.u_amount.value = exports.amount;
     _super.render.call(this, dt, renderTarget, toScreen);
 
+}
+
+function dispose() {
+    if (_blurMaterial) _blurMaterial.dispose();
+    _blurMaterial = undef;
+    _super.dispose.call(this);
 }

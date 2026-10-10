@@ -15,6 +15,7 @@ var _p = Effect.prototype;
 _p.init = init;
 _p.resize = resize;
 _p.render = render;
+_p.dispose = dispose;
 
 var _shaderMaterialQuadVertexShader = glslify('../shaderMaterialQuad.vert');
 
@@ -63,4 +64,12 @@ function render(dt, renderTarget, toScreen) {
 
     return effectComposer.render(this.material, toScreen);
 
+}
+
+function dispose() {
+    this.enabled = false;
+    if (this.material) this.material.dispose();
+    this.material = undef;
+    this.uniforms = undef;
+    this.vertexShader = this.fragmentShader = '';
 }

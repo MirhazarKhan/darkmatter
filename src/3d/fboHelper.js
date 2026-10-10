@@ -14,6 +14,7 @@ var vertexShader = exports.vertexShader = undef;
 var copyMaterial = exports.copyMaterial = undef;
 
 exports.init = init;
+exports.dispose = dispose;
 exports.copy = copy;
 exports.render = render;
 exports.createRenderTarget = createRenderTarget;
@@ -90,4 +91,13 @@ function getColorState() {
 function setColorState(state) {
     _renderer.setClearColor(state.clearColor, state.clearAlpha);
     _renderer.autoClearColor = state.autoClearColor;
+}
+
+function dispose() {
+    if (_mesh && _mesh.geometry) _mesh.geometry.dispose();
+    if (copyMaterial) copyMaterial.dispose();
+    copyMaterial = exports.copyMaterial = undef;
+    vertexShader = exports.vertexShader = undef;
+    rawShaderPrefix = exports.rawShaderPrefix = undef;
+    _renderer = _mesh = _scene = _camera = undef;
 }

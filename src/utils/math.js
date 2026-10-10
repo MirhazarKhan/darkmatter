@@ -23,7 +23,7 @@ function step ( edge, val ) {
 
 function smoothstep ( edge0, edge1, val ) {
     val = unMix( edge0, edge1, val );
-    return val * val ( 3 - val * 2 );
+    return val * val * ( 3 - val * 2 );
 }
 
 function clamp ( val, min, max ) {

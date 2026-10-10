@@ -5,6 +5,7 @@ var merge = require('mout/object/merge');
 var undef;
 
 exports.init = init;
+exports.dispose = dispose;
 exports.resize = resize;
 exports.renderQueue = renderQueue;
 exports.renderScene = renderScene;
@@ -21,6 +22,7 @@ var toRenderTarget = exports.toRenderTarget = undef;
 var resolution = exports.resolution = undef;
 var _renderTargetLists = {};
 var _renderTargetCounts = {};
+var _poolTargets = [];
 var _renderTargetDefaultState = {
     depthBuffer : false,
     texture: {
@@ -126,6 +128,7 @@ function getRenderTarget(bitShift, isRGBA) {
         merge(renderTarget, _renderTargetDefaultState);
     } else {
         renderTarget = fboHelper.createRenderTarget(width, height, isRGBA ? THREE.RGBAFormat : THREE.RGBFormat);
+        _poolTargets.push(renderTarget);
         renderTarget._listId = id;
         _renderTargetCounts[id] = _renderTargetCounts[id] || 0;
     }
@@ -162,4 +165,42 @@ function releaseRenderTarget(renderTarget) {
 
 function _getRenderTargetList(id) {
     return _renderTargetLists[id] || (_renderTargetLists[id] = []);
+}
+
+function dispose() {
+    var disposedEffects = [];
+    var i;
+    for (i = 0; i < queue.length; i++) {
+        var effect = queue[i];
+        if (effect && disposedEffects.indexOf(effect) === -1) {
+            disposedEffects.push(effect);
+            if (effect.dispose) effect.dispose();
+            else if (effect.material) {
+                effect.material.dispose();
+                effect.material = undef;
+            }
+        }
+    }
+    queue.length = 0;
+    var targets = [fromRenderTarget, toRenderTarget].concat(_poolTargets);
+    for (var id in _renderTargetLists) {
+        if (Object.prototype.hasOwnProperty.call(_renderTargetLists, id)) {
+            targets = targets.concat(_renderTargetLists[id]);
+        }
+    }
+    var disposedTargets = [];
+    for (i = 0; i < targets.length; i++) {
+        var target = targets[i];
+        if (target && disposedTargets.indexOf(target) === -1) {
+            disposedTargets.push(target);
+            target.dispose();
+        }
+    }
+    _poolTargets = [];
+    _renderTargetLists = {};
+    _renderTargetCounts = {};
+    fromRenderTarget = exports.fromRenderTarget = undef;
+    toRenderTarget = exports.toRenderTarget = undef;
+    resolution = exports.resolution = undef;
+    exports.renderer = exports.scene = exports.camera = undef;
 }

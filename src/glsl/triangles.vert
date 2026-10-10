@@ -1,8 +1,12 @@
 uniform sampler2D texturePosition;
+uniform float possession;
+
+#pragma glslify: possessionMask = require(./helpers/possessionMask.glsl)
 
 // chunk(shadowmap_pars_vertex);
 
 varying float vLife;
+varying float vPossession;
 attribute vec3 positionFlip;
 attribute vec2 fboUV;
 
@@ -18,6 +22,7 @@ void main() {
     vec4 mvPosition = viewMatrix * worldPosition;
 
     vLife = positionInfo.w;
+    vPossession = possessionMask(positionInfo.xyz, fboUV, possession);
 
     mvPosition += vec4((position + (positionFlip - position) * flipRatio) * smoothstep(0.0, 0.2, positionInfo.w), 0.0);
     gl_Position = projectionMatrix * mvPosition;
