@@ -22,6 +22,7 @@ var _color1;
 var _color2;
 var _tmpColor;
 var _possessionColor;
+var _flipPhase = 0;
 
 var TEXTURE_WIDTH = settings.simulatorTextureWidth;
 var TEXTURE_HEIGHT = settings.simulatorTextureHeight;
@@ -30,6 +31,7 @@ var AMOUNT = TEXTURE_WIDTH * TEXTURE_HEIGHT;
 function init(renderer) {
 
     container = exports.container = new THREE.Object3D();
+    _flipPhase = 0;
 
     _tmpColor = new THREE.Color();
     _color1 = new THREE.Color(settings.color1);
@@ -68,7 +70,13 @@ function _createParticleMesh() {
                 color1: { type: 'c', value: undef },
                 color2: { type: 'c', value: undef },
                 possession: { type: 'f', value: 0 },
-                possessionColor: { type: 'c', value: undef }
+                possessionColor: { type: 'c', value: undef },
+                ringMetallic: { type: 'f', value: 0 },
+                ringTime: { type: 'f', value: 0 },
+                awaken: { type: 'f', value: 0 },
+                scorePulse: { type: 'f', value: 0 },
+                titleBrightness: { type: 'f', value: 0 },
+                titleTexture: { type: 't', value: undef }
             }
         ]),
         vertexShader: shaderParse(glslify('../glsl/particles.vert')),
@@ -189,6 +197,12 @@ function _createTriangleMesh() {
                 color2: { type: 'c', value: undef },
                 possession: { type: 'f', value: 0 },
                 possessionColor: { type: 'c', value: undef },
+                ringMetallic: { type: 'f', value: 0 },
+                ringTime: { type: 'f', value: 0 },
+                awaken: { type: 'f', value: 0 },
+                scorePulse: { type: 'f', value: 0 },
+                titleBrightness: { type: 'f', value: 0 },
+                titleTexture: { type: 't', value: undef },
                 cameraMatrix: { type: 'm4', value: undef }
             }
         ]),
@@ -241,6 +255,10 @@ function _createTriangleMesh() {
 
 function update(dt) {
     var mesh;
+    if (dt > 0) _flipPhase = (_flipPhase + Math.min(dt, 50) / 16.6667) % 2;
+    // Match the original alternating triangles at full speed, then rotate them
+    // through the intervening angles on the same slow clock as the GPU flow.
+    var flipRatio = _flipPhase;
 
     _triangleMesh.visible = settings.useTriangleParticles;
     _particleMesh.visible = !settings.useTriangleParticles;
@@ -252,19 +270,26 @@ function update(dt) {
     _color2.lerp(_tmpColor, 0.05);
 
     var possession = Math.max(0, Math.min(1, Number(settings.possession) || 0));
+    var ringMetallic = Math.max(0, Math.min(1, Number(settings.ringMetallic) || 0));
     _possessionColor.setStyle(settings.possessionColor || '#ff0204');
 
     for(var i = 0; i < 2; i++) {
         mesh = _meshes[i];
         mesh.material.uniforms.possession.value = possession;
+        mesh.material.uniforms.ringMetallic.value = ringMetallic;
+        mesh.material.uniforms.ringTime.value = simulator.ringTime;
+        mesh.material.uniforms.awaken.value = Math.max(0, Math.min(1, Number(settings.awaken) || 0));
+        mesh.material.uniforms.scorePulse.value = Math.max(0, Math.min(1, Number(settings.scorePulse) || 0));
+        mesh.material.uniforms.titleBrightness.value = Math.max(0, Math.min(1, Number(settings.titleBrightness) || 0));
+        mesh.material.uniforms.titleTexture.value = settings.titleTexture || simulator.positionRenderTarget;
         mesh.material.uniforms.texturePosition.value = simulator.positionRenderTarget;
         mesh.customDistanceMaterial.uniforms.texturePosition.value = simulator.positionRenderTarget;
         mesh.motionMaterial.uniforms.texturePosition.value = simulator.positionRenderTarget;
         mesh.motionMaterial.uniforms.texturePrevPosition.value = dt > 0 ? simulator.prevPositionRenderTarget : simulator.positionRenderTarget;
-        if(mesh.material.uniforms.flipRatio && dt > 0) {
-            mesh.material.uniforms.flipRatio.value ^= 1;
-            mesh.customDistanceMaterial.uniforms.flipRatio.value ^= 1;
-            mesh.motionMaterial.uniforms.flipRatio.value ^= 1;
+        if(mesh.material.uniforms.flipRatio) {
+            mesh.material.uniforms.flipRatio.value = flipRatio;
+            mesh.customDistanceMaterial.uniforms.flipRatio.value = flipRatio;
+            mesh.motionMaterial.uniforms.flipRatio.value = flipRatio;
         }
     }
     particleTrails.update(dt);
@@ -276,4 +301,5 @@ function dispose() {
     container = exports.container = undef;
     _renderer = _particleMesh = _triangleMesh = _meshes = undef;
     _color1 = _color2 = _tmpColor = _possessionColor = undef;
+    _flipPhase = 0;
 }

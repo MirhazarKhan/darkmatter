@@ -48,6 +48,17 @@ exports.burst = 0;
 exports.tailStrength = 0;
 exports.possession = 0;
 exports.possessionColor = '#ff0204';
+exports.ringFormation = 0;
+exports.ringMotion = 1;
+exports.ringMetallic = 0;
+exports.awaken = 0;
+exports.awakenTime = 0;
+exports.scorePulse = 0;
+exports.titleFormation = 0;
+exports.titleTexture = null;
+exports.titleAspect = 1;
+exports.titleBrightness = 0;
+exports.burstFlash = 0;
 
 exports.fxaa = false;
 var motionBlurQualityMap = exports.motionBlurQualityMap = {

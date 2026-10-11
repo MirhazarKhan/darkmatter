@@ -31,7 +31,7 @@ function init(renderer, scene, camera) {
     effectComposer.queue.push(fxaa);
 
     var gl = renderer.getContext();
-    motionBlur.supported = !!(gl.getExtension('OES_texture_float') && gl.getExtension('OES_texture_float_linear'));
+    motionBlur.supported = !!gl.getExtension('OES_texture_float');
     if(motionBlur.supported) {
         motionBlur.init();
         effectComposer.queue.push(motionBlur);

@@ -8,11 +8,18 @@ uniform float u_maxDistance;
 uniform float u_jitter;
 uniform float u_motionMultiplier;
 uniform float u_leaning;
+uniform vec2 u_clipPlanes;
+uniform vec2 u_focusRange;
+uniform float u_depthStrength;
+uniform float u_depthMotionMultiplier;
+
+#pragma glslify: farDepthWeight = require(./depthWeight.glsl)
 
 varying vec3 v_color;
 varying float v_ratio;
 varying float v_depth;
 varying vec2 v_uv;
+varying float v_farWeight;
 
 void main() {
 
@@ -22,10 +29,12 @@ void main() {
 
     v_ratio = side;
 
-    vec3 motion = texture2D( u_motionTexture, position.xy ).xyz;
+    vec4 motion = texture2D( u_motionTexture, position.xy );
     v_depth = motion.z;
+    v_farWeight = farDepthWeight(motion, u_clipPlanes, u_focusRange);
 
-    vec2 offset = motion.xy * u_resolution * u_motionMultiplier;
+    float motionWeight = mix(1.0, v_farWeight * u_depthMotionMultiplier, u_depthStrength);
+    vec2 offset = motion.xy * u_resolution * u_motionMultiplier * motionWeight;
     float offsetDistance = length(offset);
     if(offsetDistance > u_maxDistance) {
         offset = normalize(offset) * u_maxDistance;

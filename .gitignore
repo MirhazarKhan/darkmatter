@@ -44,3 +44,6 @@ Thumbs.db
 *.sublime-workspace
 
 /node_modules
+
+# Local editor workspace configuration
+*.code-workspace

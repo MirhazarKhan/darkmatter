@@ -30,6 +30,8 @@ exports.initAnimation = 0;
 
 exports.positionRenderTarget = undef;
 exports.prevPositionRenderTarget = undef;
+exports.flowCenter = undef;
+exports.ringTime = 0;
 
 function init(renderer) {
 
@@ -80,7 +82,16 @@ function init(renderer) {
             targetStrength: { type: 'f', value: 0 },
             deltaRatio: { type: 'f', value: 1 },
             intensity: { type: 'f', value: 0.55 },
-            burst: { type: 'f', value: 0 }
+            burst: { type: 'f', value: 0 },
+            ringFormation: { type: 'f', value: 0 },
+            ringTime: { type: 'f', value: 0 },
+            awaken: { type: 'f', value: 0 },
+            awakenTime: { type: 'f', value: 0 },
+            scorePulse: { type: 'f', value: 0 },
+            titleFormation: { type: 'f', value: 0 },
+            titleTexture: { type: 't', value: undef },
+            titleAspect: { type: 'f', value: 1 },
+            burstFlash: { type: 'f', value: 0 }
         },
         vertexShader: rawShaderPrefix + shaderParse(glslify('../glsl/quad.vert')),
         fragmentShader: rawShaderPrefix + shaderParse(glslify('../glsl/position.frag')),
@@ -89,6 +100,8 @@ function init(renderer) {
         depthWrite: false,
         depthTest: false
     });
+    // The camera can follow the original moving attractor without reading back GPU positions.
+    exports.flowCenter = _positionShader.uniforms.mouse3d.value;
 
     _mesh = new THREE.Mesh(new THREE.PlaneBufferGeometry(2, 2), _copyShader);
     _scene.add(_mesh);
@@ -160,6 +173,14 @@ function _createPositionTexture() {
 function update(dt) {
 
     if (!_renderer || !_positionShader) return;
+    // Advection, lifetime, noise and the attractor must share the same simulation clock.
+    dt = Math.max(0, Math.min(Number(dt) || 0, 50));
+    if (!dt) return;
+
+    var ringFormation = Math.max(0, Math.min(1, Number(settings.ringFormation) || 0));
+    if (ringFormation > 0) {
+        exports.ringTime += dt * 0.001 * Math.max(0, Math.min(1, Number(settings.ringMotion) || 0));
+    }
 
     if (settings.speed || settings.dieSpeed) {
         var r = 200;
@@ -175,7 +196,7 @@ function update(dt) {
 
         _renderer.autoClearColor = false;
 
-        var deltaRatio = Math.max(0, Math.min(dt, 50)) / 16.6667;
+        var deltaRatio = dt / 16.6667;
 
         _positionShader.uniforms.speed.value = settings.speed * deltaRatio;
         _positionShader.uniforms.dieSpeed.value = settings.dieSpeed * deltaRatio;
@@ -190,6 +211,15 @@ function update(dt) {
         _positionShader.uniforms.deltaRatio.value = deltaRatio;
         _positionShader.uniforms.intensity.value = settings.intensity;
         _positionShader.uniforms.burst.value = settings.burst;
+        _positionShader.uniforms.ringFormation.value = ringFormation;
+        _positionShader.uniforms.ringTime.value = exports.ringTime;
+        _positionShader.uniforms.awaken.value = Math.max(0, Math.min(1, Number(settings.awaken) || 0));
+        _positionShader.uniforms.awakenTime.value = Math.max(0, Number(settings.awakenTime) || 0);
+        _positionShader.uniforms.scorePulse.value = Math.max(0, Math.min(1, Number(settings.scorePulse) || 0));
+        _positionShader.uniforms.titleFormation.value = Math.max(0, Math.min(1, Number(settings.titleFormation) || 0));
+        _positionShader.uniforms.titleTexture.value = settings.titleTexture || _textureDefaultPosition;
+        _positionShader.uniforms.titleAspect.value = Math.max(0.2, Math.min(4, Number(settings.titleAspect) || 1));
+        _positionShader.uniforms.burstFlash.value = Math.max(0, Math.min(1, Number(settings.burstFlash) || 0));
 
         if (settings.followMouse) {
             _positionShader.uniforms.mouse3d.value.copy(settings.mouse3d);
@@ -200,7 +230,7 @@ function update(dt) {
                 Math.cos(_followPointTime * 4.0) * h,
                 Math.sin(_followPointTime * 2.0) * r
             );
-            _positionShader.uniforms.mouse3d.value.lerp(_followPoint, 0.2);
+            _positionShader.uniforms.mouse3d.value.lerp(_followPoint, 1 - Math.pow(0.8, deltaRatio));
         }
 
         // _renderer.setClearColor(0, 0);
@@ -229,6 +259,8 @@ function dispose() {
     _copyShader = _positionShader = _textureDefaultPosition = undef;
     _positionRenderTarget = _positionRenderTarget2 = undef;
     exports.positionRenderTarget = exports.prevPositionRenderTarget = undef;
+    exports.flowCenter = undef;
+    exports.ringTime = 0;
     _renderer = _mesh = _scene = _camera = _followPoint = undef;
     _followPointTime = 0;
     exports.initAnimation = 0;

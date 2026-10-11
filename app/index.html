@@ -9,10 +9,9 @@
     <meta property="og:title" content="Spirit — Mirhazar Khan">
     <meta property="og:description" content="A particle film in your hands. Scroll into Dark Matter.">
     <link rel="stylesheet" href="css/normalize.css">
-    <link rel="stylesheet" href="css/index.css?v=cinematic-4">
+    <link rel="stylesheet" href="css/index.css?v=cinematic-8">
 </head>
 <body>
-    <div class="scroll-story" id="scroll-story" aria-hidden="true"></div>
     <main class="cinematic-overlay" aria-label="Spirit, an interactive particle film">
         <header class="film-header">
             <button class="signature" id="restart-experience" type="button" aria-label="Spirit, return to the beginning">SPIRIT</button>
@@ -40,15 +39,29 @@
         <div class="experience-loading" id="experience-loading" role="status" aria-live="polite"><span class="loading-dot" aria-hidden="true"></span>Gathering particles</div>
         <div class="experience-error" id="experience-error" role="alert" hidden>This experience needs WebGL. Try a browser with hardware acceleration enabled.</div>
         <p class="visually-hidden" id="sound-status" role="status" aria-live="polite">Sound is off.</p>
+        <p class="visually-hidden" id="chapter-status" role="status" aria-live="polite"></p>
 
-        <div class="scroll-cue" id="scroll-cue" aria-hidden="true"><span>SCROLL TO ENTER</span><span class="scroll-cue-line"></span></div>
-        <div class="scroll-cue next-scene-cue" id="next-scene-cue" aria-hidden="true"><span>SCROLL TO CONTINUE</span><span class="scroll-cue-line"></span></div>
+        <button class="hold-cue" id="hold-cue" type="button" aria-label="Hold to awaken the ring" aria-describedby="hold-hint hold-keyboard" aria-hidden="true" disabled>
+            <span class="hold-mark" aria-hidden="true"><span></span></span>
+            <span id="hold-label">CLICK AND HOLD</span>
+            <span id="hold-hint">Awaken the matter · sound on hold</span>
+        </button>
+        <p class="visually-hidden" id="hold-keyboard">Hold Space to awaken the ring, releasing early to return. Press Enter on the button to play the full transformation.</p>
+        <p class="hold-status visually-hidden" id="hold-status" role="status" aria-live="polite"></p>
+        <section class="final-caption" id="final-caption" aria-hidden="true" aria-labelledby="final-heading">
+            <h2 class="visually-hidden" id="final-heading">DARK MATTER</h2>
+            <p>A new state of matter.</p>
+        </section>
+
+        <button class="scroll-cue" id="scroll-cue" type="button" aria-label="Enter Dark Matter"><span>SCROLL TO ENTER</span><span class="scroll-cue-line" aria-hidden="true"></span></button>
+        <button class="scroll-cue next-scene-cue" id="next-scene-cue" type="button" aria-label="Continue into red matter" aria-hidden="true" disabled><span>SCROLL TO CONTINUE</span><span class="scroll-cue-line" aria-hidden="true"></span></button>
+        <button class="scroll-cue return-scene-cue" id="return-scene-cue" type="button" aria-label="Return to red matter" aria-hidden="true" disabled><span>SCROLL UP TO RETURN</span><span class="scroll-cue-line" aria-hidden="true"></span></button>
         <div class="progress-track" aria-hidden="true"><span class="scroll-progress" id="scroll-progress"></span></div>
 
         <aside class="credits-panel" id="credits-panel" role="dialog" aria-modal="false" aria-labelledby="credits-heading" hidden>
             <div class="credits-heading-row"><span class="film-label">BEHIND THE SCENE</span><button class="credits-close" id="credits-close" type="button" aria-label="Close information"><span aria-hidden="true">×</span></button></div>
             <h2 id="credits-heading">A particle film<br>in your hands.</h2>
-            <p>Scroll to move through the scene. Enable sound for the impact.</p>
+            <p>Scroll or swipe to begin each scene. Let the moment unfold, then move again. Scroll up to return. You can also use the arrow keys or tap the cue below. Enable sound for the buildup and bass drops.</p>
             <div class="credit-list">
                 <div><span>EXPERIENCE</span><p>Mirhazar Khan</p></div>
                 <div><span>ORIGINAL EXPERIMENT</span><p><a href="https://www.edankwan.com/" target="_blank" rel="noopener noreferrer">Edan Kwan <span aria-hidden="true">↗</span></a></p></div>
@@ -58,6 +71,6 @@
         </aside>
     </main>
     <script src="js/three.r74.min.js"></script>
-    <script src="js/index.js?v=cinematic-4"></script>
+    <script src="js/index.js?v=cinematic-11"></script>
 </body>
 </html>

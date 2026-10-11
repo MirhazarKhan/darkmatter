@@ -49,6 +49,8 @@ function getCinematicTexture(key) {
         writePosition = _planar(_cinematicTitleSampler(['MIRHAZAR', 'KHAN']), 460, 160, 3);
     } else if (key === 'darkMatter') {
         writePosition = _planar(_cinematicTitleSampler(['DARK', 'MATTER']), 420, 200, 4);
+    } else if (key === 'finalTitle') {
+        writePosition = _finalTitle(_finalTitleSampler());
     } else if (key === 'halo') {
         writePosition = _halo;
     } else if (key === 'ascendingHalo') {
@@ -56,7 +58,7 @@ function getCinematicTexture(key) {
     } else {
         throw new Error('Unknown cinematic particle target: ' + key);
     }
-    _cinematicTextures[key] = _makeTexture(writePosition);
+    _cinematicTextures[key] = _makeTexture(writePosition, key === 'finalTitle');
     return _cinematicTextures[key];
 }
 
@@ -139,7 +141,7 @@ function _ascendingHalo(data, offset, u, v, w, t) {
     data[offset + 2] -= reflection * normal[2];
 }
 
-function _makeTexture(writePosition) {
+function _makeTexture(writePosition, preserveMetadata) {
     var data = new Float32Array(_amount * 4);
     // Each scene consumes the same four random values for every particle.
     // A particle therefore keeps its identity across morphs and uploads.
@@ -147,7 +149,7 @@ function _makeTexture(writePosition) {
     for (var i = 0; i < _amount; i++) {
         var offset = i * 4;
         writePosition(data, offset, _random(), _random(), _random(), _random());
-        data[offset + 3] = 1;
+        if (!preserveMetadata) data[offset + 3] = 1;
     }
     var texture = new THREE.DataTexture(data, _width, _height, THREE.RGBAFormat, THREE.FloatType);
     texture.minFilter = THREE.NearestFilter;
@@ -377,6 +379,63 @@ function _cinematicTitleSampler(lines) {
         if (sampler) return sampler;
     }
     return _bitmapTextSampler(lines);
+}
+
+function _finalTitleSampler() {
+    var canvas = _canvas(1120, 600);
+    if (canvas) {
+        var context = canvas.getContext('2d');
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.fillStyle = '#080808';
+        context.font = '900 280px Impact, "Arial Black", Arial, sans-serif';
+        context.textAlign = 'center';
+        context.textBaseline = 'alphabetic';
+        var lines = ['DARK', 'MATTER'];
+        for (var i = 0; i < lines.length; i++) {
+            var metrics = context.measureText(lines[i]);
+            var ascent = metrics.actualBoundingBoxAscent || 220;
+            var descent = metrics.actualBoundingBoxDescent || 1;
+            context.save();
+            context.translate(canvas.width * 0.5, 18 + i * 298);
+            // Equal cap height, a wider lower line, and tight leading match the
+            // monumental two-line reference without relying on a web font.
+            context.scale((i ? 1052 : 800) / metrics.width, 266 / (ascent + descent));
+            context.fillText(lines[i], 0, ascent);
+            context.restore();
+        }
+        var sampler = _sampleCanvas(canvas);
+        if (sampler) return sampler;
+    }
+    return _bitmapTextSampler(['DARK', 'MATTER']);
+}
+
+function _finalTitle(sampler) {
+    return function (data, offset, u, v, w, t) {
+        if (u >= 0.84) {
+            // A sparse surrounding atmosphere shares the same GPU simulation
+            // and particle life as the lettering, rather than a second cloud.
+            var lane = (u - 0.84) / 0.16;
+            data[offset] = (v - 0.5) * 880;
+            data[offset + 1] = CENTER_Y + (w - 0.5) * 470;
+            data[offset + 2] = (t - 0.5) * 130 - lane * 18;
+            data[offset + 3] = 0;
+            return;
+        }
+        var low = 0;
+        var high = sampler.weights.length - 1;
+        var target = u / 0.84 * sampler.total;
+        while (low < high) {
+            var middle = (low + high) >> 1;
+            if (sampler.weights[middle] < target) low = middle + 1;
+            else high = middle;
+        }
+        var pixel = low * 3;
+        data[offset] = ((sampler.points[pixel] + v) / sampler.width - 0.5) * 560;
+        data[offset + 1] = CENTER_Y + (0.5 - (sampler.points[pixel + 1] + w) / sampler.height) * 300;
+        data[offset + 2] = (t - 0.5) * 5;
+        data[offset + 3] = 1;
+    };
 }
 
 function _bitmapTextSampler(lines) {

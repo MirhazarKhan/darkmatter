@@ -29,7 +29,7 @@ function getBundle(callback) {
 
 var types = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8',
     '.css': 'text/css; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg', '.ico': 'image/x-icon',
-    '.svg': 'image/svg+xml', '.webp': 'image/webp' };
+    '.svg': 'image/svg+xml', '.webp': 'image/webp', '.mp3': 'audio/mpeg' };
 
 var server = http.createServer(function (request, response) {
     if (request.method !== 'GET' && request.method !== 'HEAD') {

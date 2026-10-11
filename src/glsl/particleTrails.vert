@@ -24,7 +24,7 @@ void main() {
     vec2 normal = vec2(-tangent.y, tangent.x);
 
     // Normalize against simulation time so slow motion slows movement without losing the tail.
-    float tailLength = min(26.0, planarDistance * 18.0 / deltaRatio);
+    float tailLength = min(8.0, planarDistance * 6.0 / deltaRatio);
     float alive = smoothstep(0.0, 0.2, current.w);
     float halfWidth = mix(0.58, 0.025, position.x) * alive;
     head.xy -= tangent * tailLength * position.x;

@@ -5,9 +5,7 @@ function smooth(a, b, value) {
 
 exports.smooth = smooth;
 exports.firstSceneEnd = 0.5;
-exports.impactPoint = 0.64 * exports.firstSceneEnd;
-exports.rearmPoint = 0.38 * exports.firstSceneEnd;
-function sampleOpening(progress, reducedMotion, impactAge) {
+function sampleOpening(progress, reducedMotion) {
     progress = Math.max(0, Math.min(1, Number(progress) || 0));
     var departure = smooth(0.06, 0.30, progress);
     var rush = smooth(0.12, 0.38, progress) * (1 - smooth(0.58, 0.77, progress));
@@ -16,17 +14,6 @@ function sampleOpening(progress, reducedMotion, impactAge) {
     var darkness = smooth(0.24, 0.60, progress);
     var timeScale = (1 + rush * 1.4) * (1 - slow) + 0.14 * slow;
     var formation = smooth(0.64, 0.94, progress) * 0.42;
-    if (typeof impactAge === 'number' && isFinite(impactAge)) {
-        // Once the impact is crossed, let its beat finish even when scrolling stops.
-        var weight = smooth(0.54, 0.64, progress);
-        var braking = smooth(0, 0.9, impactAge) * weight;
-        var titleBeat = smooth(0.18, 1.5, impactAge) * weight;
-        timeScale += (0.14 - timeScale) * braking;
-        rush *= 1 - braking;
-        reveal = Math.max(reveal, titleBeat);
-        darkness = Math.max(darkness, smooth(0, 0.7, impactAge) * weight);
-        formation = Math.max(formation, titleBeat * 0.42);
-    }
     return {
         progress: progress,
         departure: departure,
@@ -40,21 +27,41 @@ function sampleOpening(progress, reducedMotion, impactAge) {
     };
 }
 
-exports.sample = function (progress, reducedMotion, impactAge) {
-    progress = Math.max(0, Math.min(1, Number(progress) || 0));
+exports.sample = function (progress, reducedMotion) {
+    progress = Math.max(0, Math.min(1.5, Number(progress) || 0));
     var openingProgress = Math.min(1, progress / exports.firstSceneEnd);
-    var chapterProgress = Math.max(0, (progress - exports.firstSceneEnd) / (1 - exports.firstSceneEnd));
+    var chapterProgress = Math.max(0, (Math.min(1, progress) - exports.firstSceneEnd) / (1 - exports.firstSceneEnd));
     var nextProgress = Math.min(1, chapterProgress * 1.5);
-    var phase = sampleOpening(openingProgress, reducedMotion, impactAge);
+    var phase = sampleOpening(openingProgress, reducedMotion);
     phase.progress = progress;
     phase.openingProgress = openingProgress;
     phase.nextProgress = nextProgress;
     phase.chapterProgress = chapterProgress;
     phase.wipe = smooth(0.04, 0.60, nextProgress);
-    phase.red = smooth(0.10, 0.65, nextProgress);
-    phase.arc = reducedMotion ? 0 : smooth(0.48, 1, chapterProgress);
-    phase.handoffRush = reducedMotion ? 0 : smooth(0.02, 0.25, nextProgress) * (1 - smooth(0.55, 0.82, nextProgress));
-    phase.timeScale += ((reducedMotion ? 0.16 : 0.82) - phase.timeScale) * smooth(0.32, 0.85, nextProgress);
-    phase.formation = phase.formation * (1 - phase.red * 0.25) + phase.arc * 0.10;
+    phase.red = smooth(0.18, 0.72, chapterProgress);
+    phase.arc = reducedMotion ? 0 : smooth(0.58, 1, chapterProgress);
+    phase.handoffRush = reducedMotion ? 0 : smooth(0.12, 0.38, chapterProgress) * (1 - smooth(0.58, 0.77, chapterProgress));
+    phase.handoffBrake = smooth(0.62, 0.80, chapterProgress);
+    phase.handoffTravel = reducedMotion ? 0 : smooth(0.13, 0.65, chapterProgress);
+    phase.tailFollow = reducedMotion ? 0 : smooth(0.66, 1, chapterProgress);
+    // The same fluid acceleration as the opening, entering from the held slow scene.
+    if (chapterProgress > 0) {
+        phase.timeScale = reducedMotion ? 0.16 : (0.14 + phase.handoffRush * 2.26) * (1 - phase.handoffBrake) + 0.12 * phase.handoffBrake;
+    }
+    phase.formation *= 1 - smooth(0.05, 0.34, chapterProgress);
+    // Follow the actual rush, then carry a softer blur into the slowing camera arc.
+    var arcBlur = smooth(0.58, 0.70, chapterProgress) * (1 - smooth(0.78, 0.98, chapterProgress)) * 0.55;
+    phase.transitionBlur = reducedMotion ? 0 : phase.handoffRush + (1 - phase.handoffRush) * arcBlur;
+    // The first three chapters keep their established coordinates and choreography.
+    var orbitProgress = Math.max(0, (progress - 1) / 0.5);
+    phase.orbitProgress = orbitProgress;
+    phase.ringFormation = smooth(0.06, 0.78, orbitProgress);
+    phase.ringCamera = reducedMotion && orbitProgress > 0 ? 1 : smooth(0.02, 0.88, orbitProgress);
+    phase.ringSilver = smooth(0.28, 0.86, orbitProgress);
+    phase.ringRush = reducedMotion ? 0 : smooth(0.04, 0.24, orbitProgress) * (1 - smooth(0.48, 0.74, orbitProgress));
+    if (orbitProgress > 0) {
+        phase.timeScale = reducedMotion ? 0.16 : 0.12 + smooth(0.01, 0.64, orbitProgress) * 0.68 + phase.ringRush * 0.60;
+        phase.transitionBlur = reducedMotion ? 0 : phase.ringRush * 0.72;
+    }
     return phase;
 };

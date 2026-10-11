@@ -16,7 +16,13 @@ void main() {
 
     vec4 pos = projectionMatrix * mvPosition;
     vec4 prevPos = projectionMatrix * u_prevModelViewMatrix * vec4(prevPositionInfo.xyz, 1.0);
-    v_motion = (pos.xy / pos.w - prevPos.xy / prevPos.w) * 0.5 * step(positionInfo.w, prevPositionInfo.w);
+    // Recover the perspective near plane (currently 10) without another uniform.
+    // A close chase can cross a particle between frames: those newly visible heads
+    // have no usable screen-space history and must not leave an enormous streak.
+    float cameraNear = max(0.001, projectionMatrix[3][2] / (projectionMatrix[2][2] - 1.0));
+    float validProjection = step(cameraNear, pos.w) * step(cameraNear, prevPos.w);
+    vec2 motion = pos.xy / max(cameraNear, pos.w) - prevPos.xy / max(cameraNear, prevPos.w);
+    v_motion = motion * 0.5 * validProjection * step(positionInfo.w, prevPositionInfo.w);
 
     gl_Position = pos;
 

@@ -1,7 +1,8 @@
 uniform sampler2D texturePosition;
 uniform sampler2D texturePrevPosition;
 
-attribute vec3 positionFlip;
+#pragma glslify: rotateParticle = require(./helpers/rotateParticle.glsl)
+
 attribute vec2 fboUV;
 
 uniform float flipRatio;
@@ -13,10 +14,17 @@ void main() {
 
     vec4 positionInfo = texture2D( texturePosition, fboUV );
     vec4 prevPositionInfo = texture2D( texturePrevPosition, fboUV );
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(positionInfo.xyz + (position + (positionFlip - position) * flipRatio) * smoothstep(0.0, 0.2, positionInfo.w), 1.0);
+    vec4 mvPosition = modelViewMatrix * vec4(positionInfo.xyz, 1.0);
+    gl_Position = projectionMatrix * (mvPosition + vec4(rotateParticle(position, flipRatio) * smoothstep(0.0, 0.2, positionInfo.w), 0.0));
 
-    vec4 pos = projectionMatrix * modelViewMatrix * vec4(positionInfo.xyz, 1.0);
+    vec4 pos = projectionMatrix * mvPosition;
     vec4 prevPos = projectionMatrix * u_prevModelViewMatrix * vec4(prevPositionInfo.xyz, 1.0);
-    v_motion = (pos.xy / pos.w - prevPos.xy / prevPos.w) * 0.5 * step(positionInfo.w, prevPositionInfo.w);
+    // Recover the perspective near plane (currently 10) without another uniform.
+    // A close chase can cross a particle between frames: those newly visible heads
+    // have no usable screen-space history and must not leave an enormous streak.
+    float cameraNear = max(0.001, projectionMatrix[3][2] / (projectionMatrix[2][2] - 1.0));
+    float validProjection = step(cameraNear, pos.w) * step(cameraNear, prevPos.w);
+    vec2 motion = pos.xy / max(cameraNear, pos.w) - prevPos.xy / max(cameraNear, prevPos.w);
+    v_motion = motion * 0.5 * validProjection * step(positionInfo.w, prevPositionInfo.w);
 
 }

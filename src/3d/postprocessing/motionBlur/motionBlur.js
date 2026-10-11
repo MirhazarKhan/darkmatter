@@ -26,6 +26,13 @@ exports.maxDistance = 100;
 exports.targetFPS = 60;
 exports.leaning = 0.5;
 
+// Perspective camera view-space distances. Zero strength preserves the opening's blur.
+exports.depthStrength = 0;
+exports.focusNear = 350;
+exports.focusFar = 550;
+exports.depthMotionMultiplier = 6;
+exports.farBlurRadius = 0;
+
 // lines method only options
 exports.jitter = 0;
 exports.opacity = 1;
@@ -48,6 +55,7 @@ var _linesGeometry;
 var _linesMaterial;
 
 var _samplingMaterial;
+var _focusMaterial;
 
 var _prevUseDithering;
 var _prevUseSampling;
@@ -60,14 +68,15 @@ var _height;
 function init(sampleCount) {
 
     var gl = effectComposer.renderer.getContext();
-    if(!gl.getExtension('OES_texture_float') || !gl.getExtension('OES_texture_float_linear')) {
-        alert('no float linear support');
-    }
-
-    _motionRenderTarget = fboHelper.createRenderTarget(1, 1, THREE.RGBAFormat, THREE.FloatType);
+    var floatLinear = !!gl.getExtension('OES_texture_float_linear');
+    // Depth must never interpolate with the empty background. Float-nearest is also
+    // supported by GPUs that can simulate particles but cannot filter float textures.
+    _motionRenderTarget = fboHelper.createRenderTarget(1, 1, THREE.RGBAFormat, THREE.FloatType,
+        THREE.NearestFilter, THREE.NearestFilter);
     _motionRenderTarget.depthBuffer = true;
 
-    _linesRenderTarget = fboHelper.createRenderTarget(1, 1, THREE.RGBAFormat, THREE.FloatType);
+    _linesRenderTarget = fboHelper.createRenderTarget(1, 1, THREE.RGBAFormat,
+        floatLinear ? THREE.FloatType : THREE.UnsignedByteType);
     _linesCamera = new THREE.Camera();
     _linesCamera.position.z = 1.0;
     _linesScene = new THREE.Scene();
@@ -95,7 +104,11 @@ function init(sampleCount) {
             u_depthTest: { type: 'f', value: 0 },
             u_opacity: { type: 'f', value: 1 },
             u_leaning: { type: 'f', value: 0.5 },
-            u_depthBias: { type: 'f', value: 0.01 }
+            u_depthBias: { type: 'f', value: 0.01 },
+            u_clipPlanes: { type: 'v2', value: new THREE.Vector2() },
+            u_focusRange: { type: 'v2', value: new THREE.Vector2() },
+            u_depthStrength: { type: 'f', value: 0 },
+            u_depthMotionMultiplier: { type: 'f', value: 1 }
         },
         vertexShader: fboHelper.rawShaderPrefix + glslify('./motionBlurLines.vert'),
         fragmentShader: fboHelper.rawShaderPrefix + glslify('./motionBlurLines.frag'),
@@ -122,13 +135,33 @@ function init(sampleCount) {
             u_maxDistance: { type: 'f', value: 1 },
             u_fadeStrength: { type: 'f', value: 1 },
             u_motionMultiplier: { type: 'f', value: 1 },
-            u_leaning: { type: 'f', value: 0.5 }
+            u_leaning: { type: 'f', value: 0.5 },
+            u_clipPlanes: { type: 'v2', value: new THREE.Vector2() },
+            u_focusRange: { type: 'v2', value: new THREE.Vector2() },
+            u_depthStrength: { type: 'f', value: 0 },
+            u_depthMotionMultiplier: { type: 'f', value: 1 }
         },
         defines: {
             SAMPLE_COUNT: sampleCount || 21
         },
         vertexShader: this.material.vertexShader,
         fragmentShader: fboHelper.rawShaderPrefix + '#define SAMPLE_COUNT ' + (sampleCount || 21) + '\n' + glslify('./motionBlurSampling.frag')
+    });
+
+    _focusMaterial = new THREE.RawShaderMaterial({
+        uniforms: {
+            u_texture: { type: 't', value: undef },
+            u_motionTexture: { type: 't', value: _motionRenderTarget },
+            u_resolution: { type: 'v2', value: effectComposer.resolution },
+            u_clipPlanes: { type: 'v2', value: new THREE.Vector2() },
+            u_focusRange: { type: 'v2', value: new THREE.Vector2() },
+            u_depthStrength: { type: 'f', value: 0 },
+            u_farBlurRadius: { type: 'f', value: 0 }
+        },
+        vertexShader: this.material.vertexShader,
+        fragmentShader: fboHelper.rawShaderPrefix + glslify('./motionBlurFocus.frag'),
+        depthTest: false,
+        depthWrite: false
     });
 }
 
@@ -142,13 +175,13 @@ function resize(width, height) {
         _height = height;
     }
 
-    var motionWidth = ~~(width * exports.motionRenderTargetScale);
-    var motionHeight = ~~(height * exports.motionRenderTargetScale);
+    var motionWidth = Math.max(1, ~~(width * exports.motionRenderTargetScale));
+    var motionHeight = Math.max(1, ~~(height * exports.motionRenderTargetScale));
     _motionRenderTarget.setSize(motionWidth , motionHeight);
 
     if(!exports.useSampling) {
-        var linesWidth = ~~(width * exports.linesRenderTargetScale);
-        var linesHeight = ~~(height * exports.linesRenderTargetScale);
+        var linesWidth = Math.max(1, ~~(width * exports.linesRenderTargetScale));
+        var linesHeight = Math.max(1, ~~(height * exports.linesRenderTargetScale));
         _linesRenderTarget.setSize(linesWidth, linesHeight);
 
         var i;
@@ -203,9 +236,12 @@ function render(dt, renderTarget, toScreen) {
 
     var useSampling = exports.useSampling;
     var fpsRatio = 1000 / (dt < 16.667 ? 16.667 : dt) / exports.targetFPS;
+    var depthStrength = Math.max(0, Math.min(1, Number(exports.depthStrength) || 0));
+    var softenFar = depthStrength > 0 && exports.farBlurRadius > 0;
 
     var state = fboHelper.getColorState();
-    effectComposer.renderer.setClearColor(0, 1);
+    // Alpha distinguishes a visible particle from clear background for depth gating.
+    effectComposer.renderer.setClearColor(0, 0);
     effectComposer.renderer.clearTarget(_motionRenderTarget, true);
 
     effectComposer.scene.traverseVisible(_setObjectBeforeState);
@@ -216,6 +252,7 @@ function render(dt, renderTarget, toScreen) {
     _visibleCache = [];
 
     if(!useSampling) {
+        _setDepthUniforms(_linesMaterial.uniforms, depthStrength);
         _linesMaterial.uniforms.u_maxDistance.value = exports.maxDistance;
         _linesMaterial.uniforms.u_jitter.value = exports.jitter;
         _linesMaterial.uniforms.u_fadeStrength.value = exports.fadeStrength;
@@ -234,16 +271,24 @@ function render(dt, renderTarget, toScreen) {
     fboHelper.setColorState(state);
 
     if(useSampling) {
+        _setDepthUniforms(_samplingMaterial.uniforms, depthStrength);
         _samplingMaterial.uniforms.u_maxDistance.value = exports.maxDistance;
         _samplingMaterial.uniforms.u_fadeStrength.value = exports.fadeStrength;
         _samplingMaterial.uniforms.u_motionMultiplier.value = exports.motionMultiplier * fpsRatio;
         _samplingMaterial.uniforms.u_leaning.value = Math.max(0.001, Math.min(0.999, exports.leaning));
         _samplingMaterial.uniforms.u_texture.value = renderTarget;
 
-        effectComposer.render(_samplingMaterial, toScreen);
+        renderTarget = effectComposer.render(_samplingMaterial, toScreen && !softenFar);
     } else {
         this.uniforms.u_lineAlphaMultiplier.value = 1 + exports.useDithering;
-        _super.render.call(this, dt, renderTarget, toScreen);
+        renderTarget = _super.render.call(this, dt, renderTarget, toScreen && !softenFar);
+    }
+
+    if (softenFar) {
+        _setDepthUniforms(_focusMaterial.uniforms, depthStrength);
+        _focusMaterial.uniforms.u_farBlurRadius.value = Math.max(0, Math.min(8, exports.farBlurRadius));
+        _focusMaterial.uniforms.u_texture.value = renderTarget;
+        effectComposer.render(_focusMaterial, toScreen);
     }
 
 }
@@ -272,6 +317,19 @@ function _setObjectAfterState(obj) {
     }
 }
 
+function _setDepthUniforms(uniforms, strength) {
+    var camera = effectComposer.camera;
+    uniforms.u_clipPlanes.value.set(camera.near, camera.far);
+    var focusNear = Math.max(camera.near, Number(exports.focusNear) || camera.near);
+    var focusFar = Math.max(focusNear + 1, Number(exports.focusFar) || focusNear + 1);
+    uniforms.u_focusRange.value.set(focusNear, focusFar);
+    uniforms.u_depthStrength.value = strength;
+    if (uniforms.u_depthMotionMultiplier) {
+        uniforms.u_depthMotionMultiplier.value = Math.max(0, Math.min(24,
+            Number(exports.depthMotionMultiplier) || 0));
+    }
+}
+
 function dispose() {
     for (var i = 0; i < _visibleCache.length; i++) {
         var object = _visibleCache[i];
@@ -283,7 +341,7 @@ function dispose() {
         }
     }
     _visibleCache = [];
-    var resources = [_motionRenderTarget, _linesRenderTarget, _linesGeometry, _linesMaterial, _samplingMaterial];
+    var resources = [_motionRenderTarget, _linesRenderTarget, _linesGeometry, _linesMaterial, _samplingMaterial, _focusMaterial];
     var disposed = [];
     for (i = 0; i < resources.length; i++) {
         var resource = resources[i];
@@ -295,7 +353,7 @@ function dispose() {
     _motionRenderTarget = _linesRenderTarget = undef;
     _lines = _linesCamera = _linesScene = undef;
     _linesPositions = _linesPositionAttribute = _linesGeometry = _linesMaterial = undef;
-    _samplingMaterial = undef;
+    _samplingMaterial = _focusMaterial = undef;
     _prevUseDithering = _prevUseSampling = undef;
     _width = _height = undef;
     exports.supported = false;
