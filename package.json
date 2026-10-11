@@ -41,7 +41,7 @@
   "scripts": {
     "dev": "node dev.js",
     "build": "node build.js",
-    "test": "node tests/sceneTimeline.test.js && node tests/sound.test.js && node tests/ringScene.test.js && node tests/holdSequence.test.js"
+    "test": "node tests/sceneTimeline.test.js && node tests/sound.test.js && node tests/ringScene.test.js && node tests/holdSequence.test.js && node tests/redCamera.test.js"
   },
   "author": "",
   "license": "MIT"

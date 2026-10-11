@@ -22,15 +22,17 @@ npm test
 
 The production build writes `app/js/index.js`. Serve the `app/` directory as a static site. The repository includes the portrait, soundtrack and generated production bundle. The included Vercel configuration uses `app/` as its output directory.
 
-The build and all 70 automated checks pass. Live visual and audible verification of the latest hold finale remains outstanding because the browser-control security policy blocked the local preview. See the [engine guide](docs/SPIRIT_ENGINE.md) for timing, architecture and the verification scope.
+The build and automated checks cover chapter timing, sound, ring and hold choreography, and the continuous camera move from the title into the red wake. Live visual verification of the latest camera revision and visual/audible verification of the hold finale remain outstanding because the browser-control security policy blocked the local preview. See the [engine guide](docs/SPIRIT_ENGINE.md) for timing, architecture and the verification scope.
 
 ## Restore Checkpoint A
 
-The `checkpoint-a` tag preserves the earlier accepted experience. To inspect it without changing the current branch, create a separate checkout:
+The `checkpoint-a` tag saves the current experience, including the fluid camera transition, living ring and hold finale. It was updated on 2026-10-12. To inspect it without changing the current branch, create a separate checkout:
 
 ```sh
 git worktree add ../darkmatter-checkpoint-a checkpoint-a
 ```
+
+The previous Checkpoint A is preserved as `checkpoint-a-original`.
 
 ## Credits and license
 

@@ -5,6 +5,7 @@ var story = require('./core/cinematic');
 var createTimeline = require('./core/sceneTimeline').create;
 var cameraPath = require('./core/cameraPath');
 var tailCamera = require('./core/tailCamera').create();
+var redCamera = require('./core/redCamera').create();
 var sound = require('./core/sound');
 var holdSequence = require('./core/holdSequence');
 var morphTargets = require('./3d/morphTargets');
@@ -29,8 +30,7 @@ var _heldKeys = {}, _touchId = null, _touchY = 0, _touchTriggered = false;
 var _pointer = new THREE.Vector2();
 var _look = new THREE.Vector3(0, 50, 0);
 var _sceneCenter = new THREE.Vector3(0, 50, 0), _subjectTarget = new THREE.Vector3();
-var _cameraAim = new THREE.Vector3(), _tailEye = new THREE.Vector3(), _tailAim = new THREE.Vector3();
-var _cameraOffset = new THREE.Vector3(), _orbitOffset = new THREE.Vector3(), _tailOffset = new THREE.Vector3();
+var _cameraAim = new THREE.Vector3(), _cameraOffset = new THREE.Vector3();
 var _ringOffset = new THREE.Vector3(), _ringAim = new THREE.Vector3();
 var _cameraTurn = new THREE.Quaternion(), _cameraBlend = new THREE.Quaternion();
 var _flowRadius = settings.radius;
@@ -310,6 +310,7 @@ function resumeHold() {
 
 function beginChapter(chapter) {
     if (!chapter) return;
+    if (!_reducedMotion && chapter.kind === 'red' && chapter.direction > 0) redCamera.begin(_camera.position, _cameraAim);
     _impactAge = 100;
     scoreChapter(chapter);
 }
@@ -322,6 +323,7 @@ function restart() {
     if (_disposed) return;
     sound.cancelTransition(); releaseContacts(); _timeline.reset(clockNow());
     resetHold();
+    redCamera.reset();
     if (_paused || document.hidden) _timeline.pause(clockNow());
     _progress = _lastProgress = _velocity = 0; _impactAge = 100; _chapterRunning = false; _announcedScene = -1;
 }
@@ -444,6 +446,8 @@ function loop() {
     var simulationDt = _paused ? 0 : Math.min(50, dt * phase.timeScale);
     if (simulationDt > 0) simulator.update(simulationDt);
     var tailPose = tailCamera.update(simulator.flowCenter, simulationDt, aspect);
+    var redShotActive = !_reducedMotion && _progress >= 0.5 && (phase.chapterProgress > 0 || redCamera.hasStart());
+    var redShot = redShotActive ? redCamera.update(tailPose, phase.chapterProgress, _paused ? 0 : dt, aspect) : null;
     _subjectTarget.copy(_sceneCenter);
     if (simulator.flowCenter && !_reducedMotion) _subjectTarget.lerp(simulator.flowCenter, story.smooth(0.12, 0.85, phase.red));
     _subjectTarget.lerp(_sceneCenter, phase.ringCamera);
@@ -451,20 +455,13 @@ function loop() {
     var parallax = _reducedMotion ? 0 : 1 - tailFollow;
     _camera.position.set(cameraPose.x + _look.x + _pointer.x * 16 * parallax + Math.sin(_elapsed * 0.15) * 8 * parallax,
         cameraPose.y + _look.y - 50 + _pointer.y * 9 * parallax + Math.sin(_elapsed * 0.2) * 6 * parallax, cameraPose.z + _look.z);
-    _tailEye.set(tailPose.x, tailPose.y, tailPose.z);
-    _tailAim.set(tailPose.lookX, tailPose.lookY, tailPose.lookZ);
-    _cameraAim.copy(_look).lerp(_tailAim, tailFollow);
-    if (tailFollow >= 1) _camera.position.copy(_tailEye);
-    else if (tailFollow > 0) {
-        // Rotate into the wake rather than crossing through the look target.
-        _orbitOffset.copy(_camera.position).sub(_look);
-        _tailOffset.copy(_tailEye).sub(_tailAim);
-        var orbitRadius = _orbitOffset.length(), tailRadius = _tailOffset.length();
-        _orbitOffset.normalize(); _tailOffset.normalize();
-        _cameraTurn.setFromUnitVectors(_orbitOffset, _tailOffset);
-        _cameraBlend.set(0, 0, 0, 1).slerp(_cameraTurn, tailFollow);
-        _cameraOffset.copy(_orbitOffset).applyQuaternion(_cameraBlend).multiplyScalar(orbitRadius + (tailRadius - orbitRadius) * tailFollow);
-        _camera.position.copy(_cameraAim).add(_cameraOffset);
+    _cameraAim.copy(_look);
+    if (redShot) {
+        // This shot replaces the competing orbit and tail rotations. Its focus,
+        // rise and docking all advance on the chapter clock, not the fluid clock.
+        _camera.position.set(redShot.x, redShot.y, redShot.z);
+        _cameraAim.set(redShot.lookX, redShot.lookY, redShot.lookZ);
+        if (phase.chapterProgress === 0) _look.copy(_cameraAim);
     }
     if (phase.ringCamera > 0) {
         // Pull out along an arc, keeping the gathering form in front of the lens.
@@ -498,11 +495,17 @@ function loop() {
     fxaa.enabled = true;
     motionBlur.enabled = settings.motionBlur && motionBlur.supported && !_reducedMotion;
     var sharpness = 1 - story.smooth(0.02, 0.45, phase.red);
-    var transitionBlur = phase.transitionBlur;
+    var cameraSweep = redShot && phase.ringCamera === 0 ?
+        4 * redShot.turn * (1 - redShot.turn) * 0.45 + 4 * redShot.dock * (1 - redShot.dock) * 0.22 : 0;
+    var transitionBlur = Math.max(phase.transitionBlur, cameraSweep);
     motionBlur.depthStrength = _reducedMotion ? 0 : phase.red * (1 - transitionBlur * 0.85) * (1 - phase.ringCamera * 0.70);
     var chaseFocus = Math.max(90, tailPose.gap * 1.25);
     motionBlur.focusNear = Math.max(40, cameraPose.radius - 45) * (1 - tailFollow) + chaseFocus * tailFollow;
     motionBlur.focusFar = (cameraPose.radius + 130) * (1 - tailFollow) + (chaseFocus + 150) * tailFollow;
+    if (redShot) {
+        motionBlur.focusNear = Math.max(40, redShot.radius - 45) * (1 - redShot.dock) + chaseFocus * redShot.dock;
+        motionBlur.focusFar = (redShot.radius + 130) * (1 - redShot.dock) + (chaseFocus + 150) * redShot.dock;
+    }
     if (phase.ringCamera > 0) {
         motionBlur.focusNear += (ringPose.radius - 30 - motionBlur.focusNear) * phase.ringCamera;
         motionBlur.focusFar += (ringPose.radius + 205 - motionBlur.focusFar) * phase.ringCamera;
@@ -602,6 +605,8 @@ function loop() {
     document.body.setAttribute('data-camera-azimuth', (Math.atan2(_cameraOffset.x, _cameraOffset.z) * 180 / Math.PI).toFixed(2));
     document.body.setAttribute('data-camera-radius', _cameraOffset.length().toFixed(2));
     document.body.setAttribute('data-camera-mode', phase.ringCamera > 0.99 ? 'ring-orbit' : tailFollow > 0.95 && phase.ringCamera === 0 ? 'tail-follow' : 'cinematic');
+    document.body.setAttribute('data-camera-shot', redShot && phase.ringCamera === 0 ? redShot.dock > 0.65 ? 'wake-settle' : redShot.turn > 0.05 ? 'dolly-arc' : 'forward-push' : 'scene');
+    document.body.setAttribute('data-camera-dock', redShot ? redShot.dock.toFixed(3) : '0');
     document.body.setAttribute('data-tail-follow', tailFollow.toFixed(3));
     document.body.setAttribute('data-tail-gap', tailPose.gap.toFixed(2));
     document.body.setAttribute('data-camera-position', [_camera.position.x, _camera.position.y, _camera.position.z].map(function (value) { return value.toFixed(2); }).join(','));
@@ -648,7 +653,7 @@ function dispose() {
         if (object.motionMaterial) object.motionMaterial.dispose();
         if (object.customDistanceMaterial) object.customDistanceMaterial.dispose();
     });
-    tailCamera.reset(); morphTargets.dispose(); simulator.dispose(); postprocessing.dispose(); fboHelper.dispose(); particles.dispose(); sound.dispose();
+    tailCamera.reset(); redCamera.reset(); morphTargets.dispose(); simulator.dispose(); postprocessing.dispose(); fboHelper.dispose(); particles.dispose(); sound.dispose();
     if (_renderer) {
         _renderer.dispose();
         if (_renderer.domElement.parentNode) _renderer.domElement.parentNode.removeChild(_renderer.domElement);
@@ -663,6 +668,7 @@ window.Spirit = {
         if (_disposed) return;
         sound.cancelTransition(); releaseContacts(); _timeline.seek(Number(progress) || 0, clockNow());
         resetHold();
+        redCamera.reset();
         if (_paused || document.hidden) _timeline.pause(clockNow());
         _impactAge = 100; _chapterRunning = false;
     },
